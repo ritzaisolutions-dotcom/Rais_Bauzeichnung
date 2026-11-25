@@ -221,7 +221,7 @@ export function stageRoom(
           x: ref.x + front.x * dist,
           y: ref.y + front.y * dist,
           rotation: ref.rotation,
-          along: [0, 0.2, -0.2],
+          along: [0, 0.2, -0.2, 0.4, -0.4, 0.6, -0.6],
           across: [0, 0.15, -0.15],
         });
       }
