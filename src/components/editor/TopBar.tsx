@@ -288,7 +288,18 @@ export function TopBar({
                 });
               }}
             >
-              Grundriss als PNG
+              Grundriss als PNG (hochauflösend)
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                close();
+                void withPlan(async () => {
+                  const b = await planPngBlob(floor, 600);
+                  if (b) download(b, `${base}_druck.png`);
+                });
+              }}
+            >
+              Grundriss als PNG für Großdruck (600 px/m)
             </MenuItem>
             <MenuItem
               onClick={() => {
@@ -305,7 +316,7 @@ export function TopBar({
               onClick={() => {
                 close();
                 void withPlan(async () => {
-                  const b = await planPngBlob(floor, 200);
+                  const b = await planPngBlob(floor, 400);
                   if (b && !printPlan(URL.createObjectURL(b), `${project.name} · ${floor.name}`))
                     st.showToast("Bitte Pop-ups erlauben, um zu drucken.");
                 });
@@ -318,12 +329,12 @@ export function TopBar({
               onClick={() => {
                 close();
                 void with3d(async () => {
-                  const b = await screenshot3d();
-                  if (b) download(b, `${base}_3d.png`);
+                  const b = await screenshot3d(3840);
+                  if (b) download(b, `${base}_3d_4k.png`);
                 });
               }}
             >
-              3D-Ansicht als Bild
+              3D-Ansicht als Render (4K)
             </MenuItem>
             <MenuItem
               onClick={() => {

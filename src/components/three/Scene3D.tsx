@@ -2,8 +2,10 @@
 
 import { OrbitControls, OrthographicCamera, PerspectiveCamera, PointerLockControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { EffectComposer, N8AO, SMAA } from "@react-three/postprocessing";
+import type { EffectComposer as EffectComposerImpl } from "postprocessing";
 import clsx from "clsx";
-import { Box, Eye, Footprints, Map as MapIcon, Scissors } from "lucide-react";
+import { Box, Eye, Footprints, Map as MapIcon, Scissors, Sparkle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { findDef } from "@/furniture/catalog";
@@ -351,16 +353,22 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
       <hemisphereLight args={["#fffaf0", "#b9b2a6", 0.9]} />
       <ambientLight intensity={0.25} />
       <directionalLight
-        position={[center.x + span * 0.4, span * 1.4, center.z + span * 0.6]}
+        position={
+          mode === "top"
+            ? // nearly overhead: short, soft shadows like a presentation floor plan
+              [center.x + span * 0.08, span * 2.5, center.z + span * 0.12]
+            : [center.x + span * 0.4, span * 1.6, center.z + span * 0.6]
+        }
         intensity={1.6}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[4096, 4096]}
+        shadow-radius={6}
         shadow-camera-left={-span}
         shadow-camera-right={span}
         shadow-camera-top={span}
         shadow-camera-bottom={-span}
         shadow-camera-near={0.5}
-        shadow-camera-far={span * 4}
+        shadow-camera-far={span * 6}
         shadow-bias={-0.0005}
         shadow-normalBias={0.04}
       >
@@ -387,8 +395,52 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
   );
 }
 
+/**
+ * Ambient occlusion and edge smoothing, plus a high-resolution render for exports:
+ * the frame is redrawn once at the requested width, copied, and the canvas restored.
+ */
+function QualityAndExport({ hq }: { hq: boolean }) {
+  const { gl, scene, camera, size } = useThree();
+  const composerRef = useRef<EffectComposerImpl>(null);
+  useEffect(() => {
+    registry.renderHiRes = async (targetWidth: number) => {
+      const max = Math.min(gl.capabilities.maxTextureSize, 8192);
+      const ratio = Math.min(targetWidth, max) / size.width;
+      const prev = gl.getPixelRatio();
+      const composer = hq ? composerRef.current : null;
+      gl.setPixelRatio(ratio);
+      if (composer) {
+        composer.setSize(size.width, size.height);
+        composer.render();
+      } else {
+        gl.setSize(size.width, size.height, false);
+        gl.render(scene, camera);
+      }
+      const out = document.createElement("canvas");
+      out.width = gl.domElement.width;
+      out.height = gl.domElement.height;
+      out.getContext("2d")!.drawImage(gl.domElement, 0, 0);
+      gl.setPixelRatio(prev);
+      if (composer) composer.setSize(size.width, size.height);
+      else gl.setSize(size.width, size.height, false);
+      return new Promise<Blob | null>((resolve) => out.toBlob(resolve, "image/png"));
+    };
+    return () => {
+      registry.renderHiRes = null;
+    };
+  }, [gl, scene, camera, size, hq]);
+  if (!hq) return null;
+  return (
+    <EffectComposer ref={composerRef} multisampling={4}>
+      <N8AO aoRadius={0.6} distanceFalloff={0.8} intensity={2.2} quality="high" halfRes={false} />
+      <SMAA />
+    </EffectComposer>
+  );
+}
+
 export function Scene3D() {
   const [mode, setMode] = useState<CamMode>("orbit");
+  const [hq, setHq] = useState(true);
   const [cut, setCut] = useState(1.4);
   const [cutOn, setCutOn] = useState(true);
   const modes: { id: CamMode; label: string; icon: React.ReactNode }[] = [
@@ -399,8 +451,9 @@ export function Scene3D() {
   return (
     <div className="relative h-full w-full bg-[#e9e5dd]" data-testid="scene-3d">
       <Canvas
-        shadows
+        shadows="soft"
         dpr={[1, 2]}
+        frameloop={mode === "walk" ? "always" : "demand"}
         gl={{ preserveDrawingBuffer: true, antialias: true }}
         onCreated={({ gl }) => {
           registry.glCanvas = gl.domElement;
@@ -409,6 +462,7 @@ export function Scene3D() {
         }}
       >
         <SceneContent mode={mode} cut={cutOn ? cut : 99} />
+        <QualityAndExport hq={hq} />
       </Canvas>
       <div className="absolute left-3 top-3 flex items-center gap-1 rounded-lg bg-panel/95 p-1 shadow">
         {modes.map((m) => (
@@ -425,6 +479,17 @@ export function Scene3D() {
             {m.label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setHq(!hq)}
+          className={clsx(
+            "ml-1 inline-flex h-8 items-center gap-1 rounded-md border-l border-line px-2.5 text-xs font-medium",
+            hq ? "text-accent" : "text-muted hover:bg-paper",
+          )}
+          title="Hohe Bildqualität (Umgebungsverdeckung, Kantenglättung). Auf langsamen Rechnern ausschalten."
+        >
+          <Sparkle size={14} /> {hq ? "Hohe Qualität" : "Schnell"}
+        </button>
         {mode === "top" && (
           <div className="ml-1 flex items-center gap-2 border-l border-line pl-2 text-xs">
             <button

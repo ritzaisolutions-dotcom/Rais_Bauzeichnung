@@ -8,4 +8,6 @@ export const registry: {
   fit: (() => void) | null;
   glCanvas: HTMLCanvasElement | null;
   scene: Object3D | null;
-} = { svg: null, fit: null, glCanvas: null, scene: null };
+  /** Renders the current 3D view at the given pixel width. */
+  renderHiRes: ((width: number) => Promise<Blob | null>) | null;
+} = { svg: null, fit: null, glCanvas: null, scene: null, renderHiRes: null };

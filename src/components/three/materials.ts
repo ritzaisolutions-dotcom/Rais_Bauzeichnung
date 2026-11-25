@@ -18,7 +18,13 @@ export function partMaterial(color: string, finish: FurniturePart["finish"]): TH
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.75 });
       break;
     case "stoff":
-      m = new THREE.MeshStandardMaterial({ color, roughness: 0.95, metalness: 0 });
+      m = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.92,
+        metalness: 0,
+        bumpMap: fabricBump(),
+        bumpScale: 0.35,
+      });
       break;
     case "glas":
       m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.3 });
@@ -33,12 +39,26 @@ export function partMaterial(color: string, finish: FurniturePart["finish"]): TH
 const texCache = new Map<string, THREE.Texture>();
 /** Size of the area one floor texture tile covers, in meters. */
 export const FLOOR_TILE_M = 2.4;
+/** 2048 px for 2.4 m: about 8.5 px per centimeter, sharp in close-ups and 4K renders. */
+const TEX_PX = 2048;
+
+function jitter(hex: string, amount: number, rnd: () => number) {
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  c.setHSL(
+    hsl.h + (rnd() - 0.5) * amount * 0.08,
+    hsl.s * (1 + (rnd() - 0.5) * amount),
+    hsl.l * (1 + (rnd() - 0.5) * amount),
+  );
+  return `#${c.getHexString()}`;
+}
 
 export function floorTexture(material: FloorMaterial): THREE.Texture {
   const cached = texCache.get(material);
   if (cached) return cached;
   const def = FLOOR_MATERIALS[material];
-  const size = 1024;
+  const size = TEX_PX;
   const c = document.createElement("canvas");
   c.width = size;
   c.height = size;
@@ -46,64 +66,92 @@ export function floorTexture(material: FloorMaterial): THREE.Texture {
   const k = size / FLOOR_TILE_M; // px per meter
   g.fillStyle = def.base;
   g.fillRect(0, 0, size, size);
-  // deterministic pseudo random
   let seed = 7;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
     return seed / 2147483647;
   };
+
   if (def.pattern === "planks" || def.pattern === "deck") {
     const plankW = def.size * k;
     const plankL = (def.pattern === "deck" ? 2.4 : 1.2) * k;
-    for (let row = 0; row * plankW < size; row++) {
+    const rows = Math.ceil(size / plankW);
+    for (let row = 0; row < rows; row++) {
+      const y0 = row * plankW;
       let x = -rnd() * plankL;
       while (x < size) {
-        const shadeV = 0.88 + rnd() * 0.22;
-        g.fillStyle = def.base;
-        g.globalAlpha = 1;
-        g.fillRect(x, row * plankW, plankL, plankW);
-        g.fillStyle = shadeV > 1 ? "#ffffff" : "#000000";
-        g.globalAlpha = Math.abs(1 - shadeV) * 0.9;
-        g.fillRect(x, row * plankW, plankL, plankW);
-        // grain
-        g.globalAlpha = 0.07;
-        g.strokeStyle = def.line;
-        for (let i = 0; i < 6; i++) {
-          const yy = row * plankW + rnd() * plankW;
+        const tone = jitter(def.base, 0.35, rnd);
+        g.fillStyle = tone;
+        g.fillRect(x, y0, plankL, plankW);
+        // long, slightly wavy grain lines
+        const lines = 26 + Math.floor(rnd() * 14);
+        for (let i = 0; i < lines; i++) {
+          const yy = y0 + rnd() * plankW;
+          g.globalAlpha = 0.05 + rnd() * 0.12;
+          g.strokeStyle = rnd() > 0.35 ? def.line : "#ffffff";
+          g.lineWidth = 0.6 + rnd() * 1.6;
           g.beginPath();
           g.moveTo(x, yy);
-          g.bezierCurveTo(x + plankL * 0.3, yy + 3, x + plankL * 0.6, yy - 3, x + plankL, yy);
+          const amp = 1 + rnd() * 4;
+          g.bezierCurveTo(x + plankL * 0.33, yy + amp, x + plankL * 0.66, yy - amp, x + plankL, yy + (rnd() - 0.5) * 2);
           g.stroke();
         }
-        g.globalAlpha = 0.6;
+        // occasional knot
+        if (def.pattern === "planks" && rnd() > 0.72) {
+          const kx = x + rnd() * plankL;
+          const ky = y0 + plankW * (0.25 + rnd() * 0.5);
+          for (let r = 9; r > 0; r -= 1.5) {
+            g.globalAlpha = 0.08;
+            g.strokeStyle = def.line;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.ellipse(kx, ky, r * 2.4, r, 0, 0, Math.PI * 2);
+            g.stroke();
+          }
+        }
+        // bevelled joints: dark seam with a light edge
+        g.globalAlpha = 0.85;
         g.fillStyle = def.line;
-        g.fillRect(x, row * plankW, 2, plankW);
+        g.fillRect(x, y0, 2, plankW);
+        g.globalAlpha = 0.25;
+        g.fillStyle = "#ffffff";
+        g.fillRect(x + 2, y0, 1, plankW);
         x += plankL;
       }
-      g.globalAlpha = 0.6;
+      g.globalAlpha = 0.85;
       g.fillStyle = def.line;
-      g.fillRect(0, row * plankW, size, 2);
+      g.fillRect(0, y0, size, 2);
+      g.globalAlpha = 0.2;
+      g.fillStyle = "#ffffff";
+      g.fillRect(0, y0 + 2, size, 1);
     }
   } else if (def.pattern === "tiles") {
     const t = def.size * k;
     for (let y = 0; y < size; y += t) {
       for (let x = 0; x < size; x += t) {
-        g.globalAlpha = 0.06 + rnd() * 0.06;
-        g.fillStyle = rnd() > 0.5 ? "#ffffff" : "#000000";
+        g.globalAlpha = 1;
+        g.fillStyle = jitter(def.base, 0.06, rnd);
         g.fillRect(x, y, t, t);
+        // fine stone speckle
+        for (let i = 0; i < 900; i++) {
+          g.globalAlpha = 0.05 + rnd() * 0.05;
+          g.fillStyle = rnd() > 0.5 ? "#ffffff" : def.line;
+          g.fillRect(x + rnd() * t, y + rnd() * t, 1 + rnd() * 2, 1 + rnd() * 2);
+        }
       }
     }
-    g.globalAlpha = 0.9;
+    g.globalAlpha = 1;
     g.fillStyle = def.line;
+    const grout = 4;
     for (let p = 0; p <= size; p += t) {
-      g.fillRect(p - 1, 0, 2, size);
-      g.fillRect(0, p - 1, size, 2);
+      g.fillRect(p - grout / 2, 0, grout, size);
+      g.fillRect(0, p - grout / 2, size, grout);
     }
   } else {
-    for (let i = 0; i < 4000; i++) {
-      g.globalAlpha = 0.05;
+    for (let i = 0; i < 60000; i++) {
+      g.globalAlpha = 0.04 + rnd() * 0.04;
       g.fillStyle = rnd() > 0.5 ? "#ffffff" : "#000000";
-      g.fillRect(rnd() * size, rnd() * size, 3, 3);
+      g.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 2, 1 + rnd() * 2);
     }
   }
   g.globalAlpha = 1;
@@ -112,7 +160,34 @@ export function floorTexture(material: FloorMaterial): THREE.Texture {
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(1 / FLOOR_TILE_M, 1 / FLOOR_TILE_M);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 16;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
   texCache.set(material, tex);
   return tex;
+}
+
+let fabric: THREE.Texture | null = null;
+/** Woven fabric structure used as bump map on upholstery. */
+export function fabricBump(): THREE.Texture {
+  if (fabric) return fabric;
+  const size = 256;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#808080";
+  g.fillRect(0, 0, size, size);
+  for (let y = 0; y < size; y += 4) {
+    for (let x = 0; x < size; x += 4) {
+      const v = ((x / 4 + y / 4) % 2 === 0 ? 150 : 105) + Math.random() * 30;
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x, y, 4, 4);
+    }
+  }
+  fabric = new THREE.CanvasTexture(c);
+  fabric.wrapS = THREE.RepeatWrapping;
+  fabric.wrapT = THREE.RepeatWrapping;
+  fabric.repeat.set(12, 12);
+  return fabric;
 }

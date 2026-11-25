@@ -52,7 +52,7 @@ export function planSvgString(floor: Floor, pxPerMeter = 120): { svg: string; wi
   return { svg: new XMLSerializer().serializeToString(clone), width, height };
 }
 
-export async function planPngBlob(floor: Floor, pxPerMeter = 160): Promise<Blob | null> {
+export async function planPngBlob(floor: Floor, pxPerMeter = 300): Promise<Blob | null> {
   const res = planSvgString(floor, pxPerMeter);
   if (!res) return null;
   const url = URL.createObjectURL(new Blob([res.svg], { type: "image/svg+xml" }));
@@ -113,7 +113,8 @@ export async function exportGlb(): Promise<Blob | null> {
   return new Blob([result as ArrayBuffer], { type: "model/gltf-binary" });
 }
 
-export function screenshot3d(): Promise<Blob | null> {
+export function screenshot3d(width = 3840): Promise<Blob | null> {
+  if (registry.renderHiRes) return registry.renderHiRes(width);
   const c = registry.glCanvas;
   if (!c) return Promise.resolve(null);
   return new Promise((resolve) => c.toBlob(resolve, "image/png"));

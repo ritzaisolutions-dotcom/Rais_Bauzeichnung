@@ -27,15 +27,38 @@ export function MaterialPatterns() {
         const m = FLOOR_MATERIALS[key];
         const s = m.size;
         if (m.pattern === "planks" || m.pattern === "deck") {
+          // six plank rows with varied tone, staggered joints and fine grain: crisp at any export size
           const L = m.pattern === "deck" ? 2.4 : 1.2;
+          const rows = 6;
+          const tones = [0, 0.1, -0.06, 0.05, -0.1, 0.03];
+          const joints = [0.35, 0.8, 0.15, 0.6, 0.95, 0.45];
           return (
-            <pattern key={key} id={`mat-${key}`} patternUnits="userSpaceOnUse" width={L} height={s * 2}>
-              <rect width={L} height={s * 2} fill={m.base} />
-              <rect y={s} width={L} height={s} fill={m.line} opacity={0.18} />
-              <line x1={0} y1={s} x2={L} y2={s} stroke={m.line} strokeWidth={0.008} />
-              <line x1={0} y1={0} x2={L} y2={0} stroke={m.line} strokeWidth={0.008} />
-              <line x1={L * 0.35} y1={0} x2={L * 0.35} y2={s} stroke={m.line} strokeWidth={0.008} />
-              <line x1={L * 0.85} y1={s} x2={L * 0.85} y2={s * 2} stroke={m.line} strokeWidth={0.008} />
+            <pattern key={key} id={`mat-${key}`} patternUnits="userSpaceOnUse" width={L} height={s * rows}>
+              <rect width={L} height={s * rows} fill={m.base} />
+              {tones.map((t, r) => (
+                <g key={r}>
+                  <rect y={r * s} width={L} height={s} fill={t > 0 ? "#ffffff" : "#000000"} opacity={Math.abs(t)} />
+                  {[0.22, 0.48, 0.71].map((gy, i) => (
+                    <path
+                      key={i}
+                      d={`M0 ${r * s + gy * s} C ${L * 0.3} ${r * s + gy * s + 0.004}, ${L * 0.6} ${r * s + gy * s - 0.004}, ${L} ${r * s + gy * s}`}
+                      stroke={m.line}
+                      strokeWidth={0.003}
+                      opacity={0.35}
+                      fill="none"
+                    />
+                  ))}
+                  <line x1={0} y1={r * s} x2={L} y2={r * s} stroke={m.line} strokeWidth={0.006} />
+                  <line
+                    x1={L * joints[r]}
+                    y1={r * s}
+                    x2={L * joints[r]}
+                    y2={(r + 1) * s}
+                    stroke={m.line}
+                    strokeWidth={0.006}
+                  />
+                </g>
+              ))}
             </pattern>
           );
         }
