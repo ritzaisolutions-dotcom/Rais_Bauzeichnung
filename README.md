@@ -9,7 +9,7 @@ Grundriss-Editor im Browser: Bauzeichnungen (PDF/Bild) importieren, per KI oder 
 - **Räume & Flächen**: Räume entstehen automatisch aus geschlossenen Wänden. Fläche nach lichten Maßen, Umfang, Soll-Fläche laut Plan mit Abweichungsanzeige, Wohnfläche (Balkon/Terrasse zu 25 %), CSV-Flächenliste.
 - **Bauzeichnung importieren**: PDF oder Bild als Unterlage. Bei Architekten-PDFs werden Maßstab (z. B. 1:100), Raumnamen und Flächen aus dem Textlayer gelesen. Kalibrieren über eine bekannte Strecke. „Raumnamen übernehmen“ beschriftet nachgezeichnete Räume.
 - **KI-Erkennung**: Claude erkennt Wände, Öffnungen und Räume auf der Bauzeichnung und legt einen bearbeitbaren Entwurf an.
-- **Möbel**: rund 45 parametrische Möbel (Wohnen, Schlafen, Essen, Küche, Bad, Arbeiten, Deko, Außen) mit 2D-Symbol und 3D-Modell, Farben/Bezüge, Maße anpassbar. **Eigene Möbel** aus Bauteilen (Quader, Zylinder, Kugel, Kegel) mit Live-Vorschau anlegen, pro Projekt oder global.
+- **Möbel**: 17 fotorealistische 3D-Modelle (Poly Haven, CC0) und rund 40 detaillierte eigene Modelle (Polster, Bettwäsche, Griffe, Becken, Holzmaserung). In der Präsentationsansicht wird jedes Möbel als echte gerenderte Draufsicht gezeigt. Weitere Möbel (Wohnen, Schlafen, Essen, Küche, Bad, Arbeiten, Deko, Außen) mit 2D-Symbol und 3D-Modell, Farben/Bezüge, Maße anpassbar. **Eigene Möbel** aus Bauteilen (Quader, Zylinder, Kugel, Kegel) mit Live-Vorschau anlegen, pro Projekt oder global.
 - **Home Staging**: Räume oder die ganze Etage automatisch passend zum Raumtyp einrichten, in vier Stilen; Türbereiche bleiben frei.
 - **3D**: Umschauen, Draufsicht mit angeschnittenen Wänden (Präsentationsplan), Rundgang (WASD). Möbel direkt in 3D verschieben.
 - **Präsentationsansicht 2D**: Bodenbeläge, Schatten, Raumschilder.
@@ -29,6 +29,10 @@ npm run build
 ```
 
 Für den PDF-Import-Test eine Bauzeichnung als `tests/fixtures/bauzeichnung-beispiel.pdf` ablegen (wird nicht eingecheckt).
+
+### 3D-Modelle aktualisieren
+
+`node scripts/fetch-models.mjs` lädt die in der Datei gelisteten CC0-Modelle von Poly Haven, komprimiert sie und schreibt `public/models/*.glb` sowie `src/furniture/models.generated.json` (echte Maße). Neue Modelle: Asset-ID in `MODELS` eintragen, Skript ausführen, in `src/furniture/catalog.ts` mit `modelPiece(...)` aufnehmen (`rotY` dreht die Vorderseite in den Raum).
 
 ### Umgebungsvariablen
 

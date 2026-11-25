@@ -33,6 +33,7 @@ import {
   screenshot3d,
 } from "@/lib/exports";
 import { registry } from "@/lib/registry";
+import { spritesIdle } from "../three/sprites";
 import { emptyFloor, uid } from "@/model/ops";
 import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
 import { Button, IconButton } from "../ui";
@@ -122,6 +123,9 @@ export function TopBar({
     const prevView = st.view;
     st.select(null);
     if (prevView === "3d") st.setView("split");
+    await new Promise((r) => setTimeout(r, 80));
+    // furniture top views are rendered lazily; export only once they are all done
+    await spritesIdle();
     await new Promise((r) => setTimeout(r, 80));
     await fn();
     if (prevView === "3d") st.setView(prevView);

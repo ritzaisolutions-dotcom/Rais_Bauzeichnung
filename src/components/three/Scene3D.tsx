@@ -8,6 +8,7 @@ import clsx from "clsx";
 import { Box, Eye, Footprints, Map as MapIcon, Scissors, Sparkle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { findDef } from "@/furniture/catalog";
 import { computeRoomGeometry, floorBounds } from "@/model/geometry";
 import type { Floor, FurnitureDef, RoomGeometry } from "@/model/types";
@@ -19,7 +20,7 @@ import { floorTexture } from "./materials";
 
 type CamMode = "orbit" | "top" | "walk";
 
-const WALL_MAT = new THREE.MeshStandardMaterial({ color: "#f3f0ea", roughness: 0.9 });
+const WALL_MAT = new THREE.MeshStandardMaterial({ color: "#ebe7e0", roughness: 0.95 });
 const WALL_TOP_MAT = new THREE.MeshStandardMaterial({ color: "#2b2a28", roughness: 0.9 });
 const GLASS_MAT = new THREE.MeshPhysicalMaterial({
   color: "#bcd6de",
@@ -169,6 +170,7 @@ function Items({
   onItemDown: (id: string, e: ThreeEvent<PointerEvent>) => void;
   selected: Set<string>;
 }) {
+  const lookup = useMemo(() => (id: string) => findDef(id, defs), [defs]);
   return (
     <group>
       {floor.items.map((it) => {
@@ -181,7 +183,7 @@ function Items({
             rotation={[0, (-it.rotation * Math.PI) / 180, 0]}
             onPointerDown={(e) => onItemDown(it.id, e)}
           >
-            <FurnitureModel def={def} item={it} />
+            <FurnitureModel def={def} item={it} lookup={lookup} />
             {selected.has(it.id) && (
               <lineSegments position={[0, it.h / 2, 0]} material={SELECT_MAT}>
                 <edgesGeometry args={[new THREE.BoxGeometry(it.w + 0.04, it.h + 0.04, it.d + 0.04)]} />
@@ -285,6 +287,25 @@ function WalkControls({ center }: { center: THREE.Vector3 }) {
   return <PointerLockControls />;
 }
 
+/** Soft indoor reflections without downloading an HDRI. */
+function RoomLighting() {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    const { gl, scene, invalidate } = get();
+    const pmrem = new THREE.PMREMGenerator(gl);
+    const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = env;
+    scene.environmentIntensity = 0.35;
+    invalidate();
+    pmrem.dispose();
+    return () => {
+      scene.environment = null;
+      env.dispose();
+    };
+  }, [get]);
+  return null;
+}
+
 function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
   const floor = useActiveFloor();
   const defs = useFurnitureDefs();
@@ -350,8 +371,9 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
           makeDefault
         />
       )}
-      <hemisphereLight args={["#fffaf0", "#b9b2a6", 0.9]} />
-      <ambientLight intensity={0.25} />
+      <RoomLighting />
+      <hemisphereLight args={["#fffaf0", "#b9b2a6", 0.45]} />
+      <ambientLight intensity={0.05} />
       <directionalLight
         position={
           mode === "top"
@@ -451,14 +473,14 @@ export function Scene3D() {
   return (
     <div className="relative h-full w-full bg-[#e9e5dd]" data-testid="scene-3d">
       <Canvas
-        shadows="soft"
+        shadows
         dpr={[1, 2]}
         frameloop={mode === "walk" ? "always" : "demand"}
         gl={{ preserveDrawingBuffer: true, antialias: true }}
         onCreated={({ gl }) => {
           registry.glCanvas = gl.domElement;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.05;
+          gl.toneMappingExposure = 0.92;
         }}
       >
         <SceneContent mode={mode} cut={cutOn ? cut : 99} />

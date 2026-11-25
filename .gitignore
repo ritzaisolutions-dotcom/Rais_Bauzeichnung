@@ -62,3 +62,4 @@ public/pdf.worker.min.mjs
 tests/fixtures/*.pdf
 test-results/
 playwright-report/
+.cache/

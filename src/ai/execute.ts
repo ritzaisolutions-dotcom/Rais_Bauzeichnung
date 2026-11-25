@@ -1,6 +1,6 @@
 "use client";
 
-import { CATALOG, findDef } from "@/furniture/catalog";
+import { LIBRARY, findDef } from "@/furniture/catalog";
 import { boundsOf, computeRoomGeometry, wallEnds, wallLength } from "@/model/geometry";
 import { defaultMaterialFor, detectRoomType, STYLES } from "@/model/materials";
 import {
@@ -90,7 +90,7 @@ export function executeTool(name: string, rawInput: unknown): { ok: boolean; res
       return ok(planSnapshot(floor, custom));
     case "list_furniture_types":
       return ok(
-        [...custom, ...CATALOG].map((d) => ({
+        [...custom, ...LIBRARY].map((d) => ({
           id: d.id,
           name: d.name,
           category: d.category,

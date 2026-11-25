@@ -4,7 +4,7 @@ import { add, cross, dist, formatArea, formatM, mul, norm, perp, sub } from "@/m
 import { FLOOR_MATERIALS } from "@/model/materials";
 import type { Dimension, Floor, FloorMaterial, FurnitureDef, Opening, RoomGeometry, Vec2 } from "@/model/types";
 import { pointAlong, solidIntervals, wallFrames, wallRect, type WallFrame } from "@/model/walls";
-import { FurnitureShape } from "./FurnitureSymbol";
+import { FurnitureGraphic } from "./FurnitureSymbol";
 
 export interface PlanLayersProps {
   floor: Floor;
@@ -247,6 +247,7 @@ export const PlanLayers = memo(function PlanLayers({
   layers,
 }: PlanLayersProps) {
   const frames = useMemo(() => wallFrames(floor), [floor]);
+  const lookup = useMemo(() => (id: string) => findDef(id, defs), [defs]);
   const u = floor.underlay;
   const wallColor = presentation ? "#1d1c1a" : "#2b2a28";
 
@@ -296,7 +297,7 @@ export const PlanLayers = memo(function PlanLayers({
                   style={{ cursor: "move" }}
                 >
                   <rect x={-it.w / 2} y={-it.d / 2} width={it.w} height={it.d} fill="transparent" />
-                  <FurnitureShape def={def} item={it} presentation={presentation} />
+                  <FurnitureGraphic def={def} item={it} presentation={presentation} lookup={lookup} />
                 </g>
               );
             })}

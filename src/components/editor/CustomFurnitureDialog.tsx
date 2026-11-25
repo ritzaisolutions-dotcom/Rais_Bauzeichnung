@@ -3,8 +3,8 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { COLOR_SWATCHES } from "@/furniture/catalog";
+import { useMemo, useState } from "react";
+import { COLOR_SWATCHES, findDef } from "@/furniture/catalog";
 import { listGlobalFurniture, saveGlobalFurniture } from "@/lib/db";
 import { uid } from "@/model/ops";
 import type { FurnitureDef, FurniturePart, PartShape } from "@/model/types";
@@ -162,7 +162,8 @@ function CustomFurnitureForm({ initial, onClose }: { initial: FurnitureDef | nul
   const [global, setGlobal] = useState(true);
   const [active, setActive] = useState(0);
 
-  const preview = toDef(initial?.id ?? "preview", name, w, d, h, parts);
+  const previewId = initial?.id ?? "preview";
+  const preview = useMemo(() => toDef(previewId, name, w, d, h, parts), [previewId, name, w, d, h, parts]);
   const p = parts[active];
   const updPart = (patch: Partial<PartCm>) =>
     setParts((ps) => ps.map((x, i) => (i === active ? { ...x, ...patch } : x)));
@@ -377,7 +378,7 @@ function CustomFurnitureForm({ initial, onClose }: { initial: FurnitureDef | nul
           <Canvas shadows camera={{ position: [w / 100 + 0.8, h / 100 + 0.9, d / 100 + 1.4], fov: 40 }}>
             <hemisphereLight args={["#fffaf0", "#b9b2a6", 1]} />
             <directionalLight position={[2, 4, 3]} intensity={1.4} castShadow />
-            <FurnitureModel def={preview} item={{ w: preview.w, d: preview.d, h: preview.h }} />
+            <FurnitureModel def={preview} item={{ w: preview.w, d: preview.d, h: preview.h }} lookup={findDef} />
             <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
               <planeGeometry args={[10, 10]} />
               <meshStandardMaterial color="#e5e0d7" />

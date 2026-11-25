@@ -95,6 +95,6 @@ test("imports a construction drawing PDF with scale and room labels", async ({ p
   await expect(page.getByText("Maßstab erkannt: 1:100")).toBeVisible({ timeout: 20000 });
   await expect(page.getByText(/Raumbeschriftungen gefunden/)).toBeVisible();
   await page.getByText("Als Unterlage übernehmen und nachzeichnen").click();
-  await expect(page.locator("image")).toHaveCount(1);
+  await expect(page.getByTestId("plan-canvas").locator("image")).toHaveCount(1);
   await expect(page.getByText("Raumnamen übernehmen")).toBeVisible();
 });

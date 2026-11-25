@@ -1,4 +1,6 @@
 import { memo } from "react";
+import type { DefLookup } from "@/components/three/build";
+import { SPRITE_MARGIN, useSprite } from "@/components/three/sprites";
 import { partColor } from "@/model/materials";
 import type { FurnitureDef, FurnitureItem } from "@/model/types";
 
@@ -16,18 +18,37 @@ export const FurnitureShape = memo(function FurnitureShape({
   def,
   item,
   presentation,
+  lookup,
 }: {
   def: FurnitureDef;
   item: Pick<FurnitureItem, "w" | "d" | "h" | "color">;
   presentation: boolean;
+  lookup?: DefLookup;
 }) {
   const parts = def.parts
     .filter((p) => p.plan !== false)
     .slice()
     .sort((a, b) => a.z + a.h - (b.z + b.h));
   const { w, d } = item;
+  const sx = w / def.w;
+  const sy = d / def.d;
+  // composites (e.g. dining set): seats first, the table on top
+  const kids = (def.children ?? [])
+    .map((c) => ({ c, cdef: lookup?.(c.defId) }))
+    .filter((k): k is { c: (typeof k)["c"]; cdef: FurnitureDef } => !!k.cdef)
+    .reverse();
   return (
     <>
+      {kids.map(({ c, cdef }, i) => (
+        <g key={`c${i}`} transform={`translate(${c.x * sx} ${c.y * sy}) rotate(${c.rotation})`}>
+          <FurnitureShape
+            def={cdef}
+            item={{ w: cdef.w, d: cdef.d, h: cdef.h, color: item.color }}
+            presentation={presentation}
+            lookup={lookup}
+          />
+        </g>
+      ))}
       {parts.map((p, i) => {
         const pw = p.w * w;
         const pd = p.d * d;
@@ -52,3 +73,29 @@ export const FurnitureShape = memo(function FurnitureShape({
     </>
   );
 });
+
+/**
+ * Furniture in the plan: a rendered photoreal top view in presentation mode,
+ * otherwise (or until the render is ready) the technical outline.
+ */
+export function FurnitureGraphic({
+  def,
+  item,
+  presentation,
+  lookup,
+  pxPerMeter = 300,
+}: {
+  def: FurnitureDef;
+  item: Pick<FurnitureItem, "w" | "d" | "h" | "color">;
+  presentation: boolean;
+  lookup: DefLookup;
+  pxPerMeter?: number;
+}) {
+  const url = useSprite(def, item, lookup, pxPerMeter, presentation);
+  if (presentation && url) {
+    const W = item.w * (1 + 2 * SPRITE_MARGIN);
+    const D = item.d * (1 + 2 * SPRITE_MARGIN);
+    return <image href={url} x={-W / 2} y={-D / 2} width={W} height={D} preserveAspectRatio="none" />;
+  }
+  return <FurnitureShape def={def} item={item} presentation={presentation} lookup={lookup} />;
+}

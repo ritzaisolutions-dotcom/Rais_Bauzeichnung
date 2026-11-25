@@ -2,23 +2,35 @@
 
 import clsx from "clsx";
 import { Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { CATALOG, CATEGORY_LABELS } from "@/furniture/catalog";
+import { useMemo, useRef, useState } from "react";
+import { CATEGORY_LABELS, LIBRARY } from "@/furniture/catalog";
+import { SPRITE_MARGIN, useOnScreen, useSprite } from "@/components/three/sprites";
 import { deleteGlobalFurniture, listGlobalFurniture } from "@/lib/db";
 import type { FurnitureCategory, FurnitureDef } from "@/model/types";
-import { useEditor } from "@/store/editor";
+import { useDefLookup, useEditor } from "@/store/editor";
 import { FurnitureShape } from "../plan/FurnitureSymbol";
 import { CustomFurnitureDialog } from "./CustomFurnitureDialog";
 
 function Thumb({ def }: { def: FurnitureDef }) {
-  const pad = 0.08 * Math.max(def.w, def.d);
+  const ref = useRef<HTMLDivElement>(null);
+  const visible = useOnScreen(ref);
+  const lookup = useDefLookup();
+  const size = { w: def.w, d: def.d, h: def.h };
+  // about 240 px on the longest side, sharp on high-density screens
+  const res = Math.round(240 / Math.max(def.w, def.d));
+  const url = useSprite(def, size, lookup, res, visible);
+  const W = def.w * (1 + 2 * SPRITE_MARGIN);
+  const D = def.d * (1 + 2 * SPRITE_MARGIN);
   return (
-    <svg
-      viewBox={`${-def.w / 2 - pad} ${-def.d / 2 - pad} ${def.w + 2 * pad} ${def.d + 2 * pad}`}
-      className="h-12 w-full"
-    >
-      <FurnitureShape def={def} item={{ w: def.w, d: def.d, h: def.h }} presentation />
-    </svg>
+    <div ref={ref} className="h-16 w-full">
+      <svg viewBox={`${-W / 2} ${-D / 2} ${W} ${D}`} className="h-full w-full">
+        {url ? (
+          <image href={url} x={-W / 2} y={-D / 2} width={W} height={D} preserveAspectRatio="none" />
+        ) : (
+          <FurnitureShape def={def} item={size} presentation lookup={lookup} />
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -36,7 +48,7 @@ export function LibraryPanel() {
     return [...own, ...globalDefs.filter((d) => !ids.has(d.id))];
   }, [project?.customFurniture, globalDefs]);
 
-  const all = useMemo(() => [...custom.map((d) => ({ ...d, category: "eigene" as const })), ...CATALOG], [custom]);
+  const all = useMemo(() => [...custom.map((d) => ({ ...d, category: "eigene" as const })), ...LIBRARY], [custom]);
   const filtered = all.filter(
     (d) => (cat === "alle" || d.category === cat) && (!q || d.name.toLowerCase().includes(q.toLowerCase())),
   );

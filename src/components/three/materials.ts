@@ -29,8 +29,14 @@ export function partMaterial(color: string, finish: FurniturePart["finish"]): TH
     case "glas":
       m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.3 });
       break;
+    case "holz":
+      m = new THREE.MeshStandardMaterial({ color, map: woodGrain(), roughness: 0.55, metalness: 0 });
+      break;
+    case "licht":
+      m = new THREE.MeshStandardMaterial({ color, emissive: "#ffd7a0", emissiveIntensity: 1.2, roughness: 1 });
+      break;
     default:
-      m = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0 });
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0 });
   }
   matCache.set(key, m);
   return m;
@@ -190,4 +196,41 @@ export function fabricBump(): THREE.Texture {
   fabric.wrapT = THREE.RepeatWrapping;
   fabric.repeat.set(12, 12);
   return fabric;
+}
+
+let wood: THREE.Texture | null = null;
+/** Light, neutral wood grain that the material colour tints (multiplied). */
+export function woodGrain(): THREE.Texture {
+  if (wood) return wood;
+  const size = 1024;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#f2f2f2";
+  g.fillRect(0, 0, size, size);
+  let seed = 11;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < 420; i++) {
+    const y = rnd() * size;
+    const shade = 150 + Math.floor(rnd() * 90);
+    g.strokeStyle = `rgb(${shade},${shade},${shade})`;
+    g.globalAlpha = 0.12 + rnd() * 0.25;
+    g.lineWidth = 0.6 + rnd() * 2.4;
+    g.beginPath();
+    g.moveTo(0, y);
+    const amp = 2 + rnd() * 10;
+    for (let x = 0; x <= size; x += 64) g.lineTo(x, y + Math.sin(x / 140 + i) * amp);
+    g.stroke();
+  }
+  g.globalAlpha = 1;
+  wood = new THREE.CanvasTexture(c);
+  wood.colorSpace = THREE.SRGBColorSpace;
+  wood.wrapS = THREE.RepeatWrapping;
+  wood.wrapT = THREE.RepeatWrapping;
+  wood.anisotropy = 8;
+  return wood;
 }

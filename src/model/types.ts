@@ -154,9 +154,38 @@ export interface FurniturePart {
   h: number;
   color: string;
   /** Slight roughness/metal hints for 3D. */
-  finish?: "matt" | "glanz" | "metall" | "stoff" | "glas";
+  finish?: "matt" | "glanz" | "metall" | "stoff" | "glas" | "holz" | "licht";
   /** Draw in the 2D symbol (default true). */
   plan?: boolean;
+  /** Tilt around the item's x axis in degrees (e.g. leaning back cushions). */
+  tilt?: number;
+  /** Rotation around the vertical axis in degrees. */
+  yaw?: number;
+  /** Corner radius factor for boxes (0 = sharp, 1 = pillow-like). */
+  round?: number;
+  /** Keeps its own colour when the item gets a colour override (bed linen, accent pillows). */
+  fixed?: boolean;
+}
+
+/** A furniture piece placed inside a composite (e.g. chairs of a dining set). Meters from the footprint center. */
+export interface FurnitureChild {
+  defId: string;
+  x: number;
+  y: number;
+  z?: number;
+  rotation: number;
+}
+
+/** Reference to a detailed 3D model (glTF/GLB) that replaces the primitive parts in 3D. */
+export interface FurnitureModelRef {
+  url: string;
+  /** Native model size in meters (before rotation). */
+  w: number;
+  d: number;
+  h: number;
+  /** Rotation (degrees) so the model's front faces the item's front (+y in the plan). */
+  rotY: number;
+  credit?: string;
 }
 
 export type FurnitureCategory =
@@ -172,6 +201,8 @@ export interface FurnitureDef {
   parts: FurniturePart[];
   /** Mounted on the wall / elevated (e.g. wall cabinet). */
   elevation?: number;
+  model?: FurnitureModelRef;
+  children?: FurnitureChild[];
   custom?: boolean;
 }
 

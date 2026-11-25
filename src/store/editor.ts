@@ -1,7 +1,9 @@
 "use client";
 
 import { produce, setAutoFreeze } from "immer";
+import { useMemo } from "react";
 import { create } from "zustand";
+import { findDef } from "@/furniture/catalog";
 import { normalizeFloor } from "@/model/ops";
 import type { Floor, FurnitureDef, Project } from "@/model/types";
 
@@ -216,4 +218,10 @@ function mergeDefs(a: FurnitureDef[], b: FurnitureDef[]) {
   cacheVal = [...a, ...b.filter((d) => !seen.has(d.id))];
   cacheKey = [a, b];
   return cacheVal;
+}
+
+/** Stable lookup of furniture definitions (catalog plus custom furniture). */
+export function useDefLookup() {
+  const defs = useFurnitureDefs();
+  return useMemo(() => (id: string) => findDef(id, defs), [defs]);
 }

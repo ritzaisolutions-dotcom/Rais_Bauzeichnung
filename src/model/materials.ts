@@ -105,6 +105,7 @@ export const STYLES: Record<StagingStyle, { label: string; floor: FloorMaterial;
 export function partColor(part: FurniturePart, def: FurnitureDef, item?: Pick<FurnitureItem, "color">): string {
   if (!item?.color) return part.color;
   const hasTextile = def.parts.some((p) => p.finish === "stoff");
+  if (part.fixed) return part.color;
   if (hasTextile) return part.finish === "stoff" ? item.color : part.color;
   return part.color === def.parts[0]?.color ? item.color : part.color;
 }
