@@ -1,0 +1,100 @@
+import { existsSync } from "node:fs";
+import { expect, test, type Page } from "@playwright/test";
+
+async function newProject(page: Page, template: "Leerer Grundriss" | "Beispielwohnung", name = "Testprojekt") {
+  await page.goto("/");
+  await page.getByTestId("new-project").click();
+  await page.getByTestId("project-name").fill(name);
+  await page.getByText(template, { exact: true }).click();
+  await page.getByTestId("create-project").click();
+  await page.waitForURL(/\/project\//);
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+}
+
+const errors: string[] = [];
+test.beforeEach(({ page }) => {
+  errors.length = 0;
+  page.on("pageerror", (e) => errors.push(e.message));
+});
+test.afterEach(() => expect(errors).toEqual([]));
+
+test("sample flat shows rooms with areas and can be staged", async ({ page }) => {
+  await newProject(page, "Beispielwohnung");
+  const table = page.locator("table");
+  for (const name of ["Wohnen / Essen", "Schlafen", "Bad", "WC", "HWR", "Flur", "Zimmer"]) {
+    await expect(table.getByText(name, { exact: true })).toBeVisible();
+  }
+  await page.getByText("Alle Räume einrichten").click();
+  await expect(page.locator('[data-kind="item"]').first()).toBeVisible();
+  expect(await page.locator('[data-kind="item"]').count()).toBeGreaterThan(15);
+  // one undo step removes all staged furniture
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('[data-kind="item"]')).toHaveCount(0);
+  await page.keyboard.press("Control+Shift+z");
+  expect(await page.locator('[data-kind="item"]').count()).toBeGreaterThan(15);
+});
+
+test("draws a room with the room tool and a wall with a typed length", async ({ page }) => {
+  await newProject(page, "Leerer Grundriss");
+  const box = (await page.getByTestId("plan-canvas").boundingBox())!;
+  await page.getByTestId("tool-room").click();
+  await page.mouse.move(box.x + 200, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 500, box.y + 350, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator('[data-kind="room"]')).toHaveCount(1);
+  await expect(page.locator('[data-kind="wall"]')).toHaveCount(4);
+
+  // a dividing wall splits the room in two
+  await page.getByTestId("tool-wall").click();
+  await page.mouse.click(box.x + 350, box.y + 150);
+  await page.mouse.move(box.x + 350, box.y + 360);
+  await page.mouse.click(box.x + 350, box.y + 350);
+  await expect(page.locator('[data-kind="room"]')).toHaveCount(2);
+
+  // typed length: 2,5 m from a free point
+  await page.getByTestId("tool-wall").click();
+  await page.mouse.click(box.x + 700, box.y + 200);
+  await page.mouse.move(box.x + 800, box.y + 200);
+  await page.keyboard.type("2,5");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await page.getByTestId("tool-select").click();
+  await page.locator('[data-kind="wall"]').last().click();
+  await expect(page.locator('input[value="2,50"]')).toHaveCount(1);
+});
+
+test("places furniture from the library and persists after reload", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "Persistenz");
+  const box = (await page.getByTestId("plan-canvas").boundingBox())!;
+  await page.getByText("Sofa 3-Sitzer").click();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator('[data-kind="item"]')).toHaveCount(1);
+  await page.keyboard.press("r");
+  await expect(page.getByText("Gespeichert")).toBeVisible({ timeout: 5000 });
+  await page.reload();
+  await expect(page.locator('[data-kind="item"]')).toHaveCount(1);
+});
+
+test("3D view renders and the assistant reports a missing key", async ({ page }) => {
+  await newProject(page, "Beispielwohnung");
+  await page.getByTestId("view-3d").click();
+  await expect(page.getByTestId("scene-3d").locator("canvas")).toBeVisible({ timeout: 15000 });
+  await page.getByTestId("chat-toggle").click();
+  await page.getByPlaceholder(/Richte das Kinderzimmer/).fill("Richte das Bad ein");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("chat-panel").getByText(/Kein Claude-API-Key/)).toBeVisible({ timeout: 15000 });
+});
+
+const pdf = "tests/fixtures/bauzeichnung-beispiel.pdf";
+test("imports a construction drawing PDF with scale and room labels", async ({ page }) => {
+  test.skip(!existsSync(pdf), "no local PDF fixture");
+  await newProject(page, "Leerer Grundriss");
+  await page.getByTestId("import-button").click();
+  await page.getByTestId("import-file").setInputFiles(pdf);
+  await expect(page.getByText("Maßstab erkannt: 1:100")).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText(/Raumbeschriftungen gefunden/)).toBeVisible();
+  await page.getByText("Als Unterlage übernehmen und nachzeichnen").click();
+  await expect(page.locator("image")).toHaveCount(1);
+  await expect(page.getByText("Raumnamen übernehmen")).toBeVisible();
+});
