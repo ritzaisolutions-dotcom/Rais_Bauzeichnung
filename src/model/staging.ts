@@ -63,9 +63,11 @@ const RECIPES: Partial<Record<RoomType, (area: number) => Step[]>> = {
   ],
   bad: (area) => [
     { defId: area > 6.5 ? "badewanne" : "dusche", wall: "main", along: 0.0, gap: 0.0 },
+    { defId: "badematte", wall: "main", frontOf: 0, dist: 0.06, optional: true },
     { defId: area > 7 ? "doppelwaschtisch" : "waschtisch", wall: "opposite", along: 0.6, gap: 0.0 },
     { defId: "wc", wall: "side1", along: 0.65, gap: 0.0 },
     { defId: "dusche", wall: "opposite", along: 1, gap: 0, optional: true },
+    { defId: "handtuchheizkoerper", wall: "side2", along: 0.5, gap: 0.01, optional: true },
   ],
   wc: () => [
     { defId: "wc", wall: "main", along: 0.5, gap: 0 },

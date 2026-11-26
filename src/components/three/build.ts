@@ -8,7 +8,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { partColor } from "@/model/materials";
 import type { FurnitureDef, FurnitureItem, FurniturePart } from "@/model/types";
+import { drapedClothGeometry, pillowGeometry, towelGeometry } from "./cloth";
 import { partMaterial } from "./materials";
+import { basinGeometry, bathtubGeometry, faucetGeometry, toiletGeometry, trayGeometry } from "./sanitary";
 
 const DEG = Math.PI / 180;
 type Size = Pick<FurnitureItem, "w" | "d" | "h" | "color">;
@@ -33,7 +35,53 @@ function roundedBox(w: number, h: number, d: number, radius: number, segments: n
   return g;
 }
 
-function partMesh(p: FurniturePart, def: FurnitureDef, size: Size): THREE.Mesh {
+const organicCache = new Map<string, THREE.BufferGeometry>();
+/** Generated geometry for organic shapes, built at the real size (not scaled) and cached. */
+function organic(shape: FurniturePart["shape"], w: number, h: number, d: number, seed: number) {
+  const key = `${shape}|${[w, h, d].map((v) => Math.round(v * 1000)).join("|")}|${seed}`;
+  let g = organicCache.get(key);
+  if (g) return g;
+  switch (shape) {
+    case "duvet":
+      g = drapedClothGeometry(w, h, d, {
+        hang: [true, true, false, true],
+        seed,
+        quilt: 0.42,
+        puff: Math.min(0.07, h * 0.3),
+      });
+      break;
+    case "throw":
+      g = drapedClothGeometry(w, h, d, { hang: [true, true, false, false], puff: 0.012, wrinkle: 0.035, seed });
+      break;
+    case "pillow":
+      g = pillowGeometry(w, h, d, seed);
+      break;
+    case "towel":
+      g = towelGeometry(w, h, d, seed);
+      break;
+    case "tub":
+      g = bathtubGeometry(w, h, d);
+      break;
+    case "basin":
+      g = basinGeometry(w, h, d);
+      break;
+    case "tray":
+      g = trayGeometry(w, h, d);
+      break;
+    case "toilet":
+      g = toiletGeometry(w, h, d);
+      break;
+    case "faucet":
+      g = faucetGeometry(w, h, d);
+      break;
+    default:
+      return null;
+  }
+  organicCache.set(key, g);
+  return g;
+}
+
+function partMesh(p: FurniturePart, def: FurnitureDef, size: Size, index = 0): THREE.Mesh {
   const pw = Math.max(0.002, p.w * size.w);
   const pd = Math.max(0.002, p.d * size.d);
   const ph = Math.max(0.002, p.h * size.h);
@@ -48,9 +96,13 @@ function partMesh(p: FurniturePart, def: FurnitureDef, size: Size): THREE.Mesh {
         ? new THREE.Mesh(roundedBox(pw, ph, pd, radius, factor > 0.5 ? 5 : 3), mat)
         : new THREE.Mesh(unit.box, mat);
     if (radius < 0.003) mesh.scale.set(pw, ph, pd);
-  } else {
+  } else if (p.shape === "cylinder" || p.shape === "sphere" || p.shape === "cone") {
     mesh = new THREE.Mesh(unit[p.shape], mat);
     mesh.scale.set(pw, ph, pd);
+  } else {
+    const geo = organic(p.shape, pw, ph, pd, index + 1) ?? unit.box;
+    const shaded = !!geo.getAttribute("color");
+    mesh = new THREE.Mesh(geo, shaded ? partMaterial(partColor(p, def, size), p.finish, true) : mat);
   }
   mesh.position.set((p.x - 0.5) * size.w, (p.z + p.h / 2) * size.h, (p.y - 0.5) * size.d);
   // positive tilt leans the top towards the back (-z)
@@ -108,11 +160,17 @@ export function isLoaded(def: FurnitureDef) {
  * Builds the furniture with its origin at the footprint center on the floor; the front faces +z.
  * Falls back to the primitive parts if a model fails to load.
  */
+export interface BuildOptions {
+  /** Skip primitive parts starting above this height (plan cut, like an architectural floor plan). */
+  planCut?: number;
+}
+
 export async function buildFurniture(
   def: FurnitureDef,
   size: Size,
   lookup: DefLookup,
   depth = 0,
+  opts: BuildOptions = {},
 ): Promise<THREE.Group> {
   const group = new THREE.Group();
   group.name = def.id;
@@ -137,7 +195,11 @@ export async function buildFurniture(
       console.warn(`Modell ${def.model.url} konnte nicht geladen werden`, e);
     }
   }
-  if (!modelDone) for (const p of def.parts) group.add(partMesh(p, def, size));
+  if (!modelDone)
+    def.parts.forEach((p, i) => {
+      if (opts.planCut !== undefined && p.z * size.h + (def.elevation ?? 0) > opts.planCut) return;
+      group.add(partMesh(p, def, size, i));
+    });
 
   if (def.children && depth < 3) {
     const kids = await Promise.all(

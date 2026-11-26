@@ -64,8 +64,11 @@ export const FurnitureShape = memo(function FurnitureShape({
           strokeWidth: presentation ? 0.6 : 1,
           vectorEffect: "non-scaling-stroke" as const,
         };
-        if (p.shape === "box") {
-          const r = p.finish === "stoff" ? Math.min(pw, pd) * 0.12 : 0;
+        if (p.shape === "faucet") return null;
+        const rectLike = ["box", "duvet", "throw", "pillow", "towel", "tub", "tray"].includes(p.shape);
+        if (rectLike) {
+          const soft = p.finish === "stoff" || p.shape === "tub" || p.shape === "pillow";
+          const r = soft ? Math.min(pw, pd) * (p.shape === "pillow" ? 0.3 : 0.12) : 0;
           return <rect key={i} x={cx - pw / 2} y={cy - pd / 2} width={pw} height={pd} rx={r} {...common} />;
         }
         return <ellipse key={i} cx={cx} cy={cy} rx={pw / 2} ry={pd / 2} {...common} />;

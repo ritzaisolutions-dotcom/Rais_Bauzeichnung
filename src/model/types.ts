@@ -138,7 +138,21 @@ export interface Floor {
   underlay?: Underlay;
 }
 
-export type PartShape = "box" | "cylinder" | "sphere" | "cone";
+export type PartShape =
+  | "box"
+  | "cylinder"
+  | "sphere"
+  | "cone"
+  // organic shapes generated in 3D (drawn as rectangles/ellipses in the technical plan)
+  | "duvet"
+  | "throw"
+  | "pillow"
+  | "towel"
+  | "tub"
+  | "basin"
+  | "tray"
+  | "toilet"
+  | "faucet";
 
 /** A primitive in a furniture model. Coordinates are relative to the item's footprint (0..1). */
 export interface FurniturePart {
@@ -154,7 +168,7 @@ export interface FurniturePart {
   h: number;
   color: string;
   /** Slight roughness/metal hints for 3D. */
-  finish?: "matt" | "glanz" | "metall" | "stoff" | "glas" | "holz" | "licht";
+  finish?: "matt" | "glanz" | "metall" | "stoff" | "glas" | "holz" | "licht" | "keramik" | "chrom";
   /** Draw in the 2D symbol (default true). */
   plan?: boolean;
   /** Tilt around the item's x axis in degrees (e.g. leaning back cushions). */

@@ -6,10 +6,17 @@ import type { FloorMaterial, FurniturePart } from "@/model/types";
 
 const matCache = new Map<string, THREE.Material>();
 
-export function partMaterial(color: string, finish: FurniturePart["finish"]): THREE.Material {
-  const key = `${color}|${finish ?? ""}`;
+export function partMaterial(color: string, finish: FurniturePart["finish"], vertexShade = false): THREE.Material {
+  const key = `${color}|${finish ?? ""}|${vertexShade ? "v" : ""}`;
   let m = matCache.get(key);
   if (m) return m;
+  if (vertexShade) {
+    // same material, but multiplied by the geometry's baked occlusion
+    m = partMaterial(color, finish).clone();
+    (m as THREE.MeshStandardMaterial).vertexColors = true;
+    matCache.set(key, m);
+    return m;
+  }
   switch (finish) {
     case "glanz":
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.05 });
@@ -17,17 +24,47 @@ export function partMaterial(color: string, finish: FurniturePart["finish"]): TH
     case "metall":
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.75 });
       break;
-    case "stoff":
-      m = new THREE.MeshStandardMaterial({
+    case "stoff": {
+      // textile: soft sheen at grazing angles and a woven structure
+      const sheen = new THREE.Color(color).lerp(new THREE.Color("#ffffff"), 0.45);
+      m = new THREE.MeshPhysicalMaterial({
         color,
-        roughness: 0.92,
+        roughness: 0.9,
         metalness: 0,
+        sheen: 1,
+        sheenRoughness: 0.75,
+        sheenColor: sheen,
         bumpMap: fabricBump(),
         bumpScale: 0.35,
+        side: THREE.DoubleSide,
       });
       break;
+    }
+    case "keramik":
+      m = new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: 0.18,
+        metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.06,
+        side: THREE.DoubleSide,
+      });
+      break;
+    case "chrom":
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.08, metalness: 1, envMapIntensity: 1.4 });
+      break;
     case "glas":
-      m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.3 });
+      m = new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: 0.03,
+        metalness: 0,
+        transmission: 0.92,
+        thickness: 0.008,
+        ior: 1.5,
+        transparent: true,
+        opacity: 0.55,
+        side: THREE.DoubleSide,
+      });
       break;
     case "holz":
       m = new THREE.MeshStandardMaterial({ color, map: woodGrain(), roughness: 0.55, metalness: 0 });

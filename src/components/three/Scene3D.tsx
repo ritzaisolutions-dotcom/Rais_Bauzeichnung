@@ -367,6 +367,7 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
           target={center}
           enabled={!dragId}
           enableRotate={mode !== "top"}
+          zoomToCursor
           maxPolarAngle={Math.PI / 2 - 0.05}
           makeDefault
         />

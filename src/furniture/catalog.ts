@@ -66,6 +66,20 @@ class Builder {
     });
     return this;
   }
+  /** Any shape by its bounding box in meters. */
+  part(
+    shape: PartShape,
+    x0: number,
+    x1: number,
+    y0: number,
+    y1: number,
+    z0: number,
+    z1: number,
+    color: string,
+    o: Opt = {},
+  ) {
+    return this.add(shape, x0, x1, y0, y1, z0, z1, color, o);
+  }
   box(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, color: string, o: Opt = {}) {
     return this.add("box", x0, x1, y0, y1, z0, z1, color, o);
   }
@@ -257,15 +271,25 @@ function bed(id: string, name: string, mattressW: number, duvet: string, throwCo
       b.box(x0, x1, 0.08, 0.13, 0.36, 1.0, C.linen, { ...fabric, round: 1, plan: false });
     }
     b.box(0.06, W - 0.06, 0.12, D - 0.04, 0.3, 0.52, C.white, { ...fabric, round: 0.35, fixed: true }); // mattress
-    b.box(0.03, W - 0.03, 0.62, D - 0.01, 0.4, 0.6, duvet, { ...fabric, round: 0.6, fixed: true }); // duvet
-    b.box(0.03, W - 0.03, 0.55, 0.75, 0.52, 0.63, C.white, { ...fabric, round: 0.9, fixed: true }); // folded top
-    const pw = mattressW > 1.2 ? (mattressW - 0.12) / 2 : mattressW - 0.2;
+    // duvet draped over the mattress, hanging down at both sides and the foot end
+    b.part("duvet", 0.015, W - 0.015, 0.66, D + 0.015, 0.33, 0.61, duvet, { ...fabric, fixed: true });
+    // turned-down top edge of the duvet
+    b.part("throw", 0.03, W - 0.03, 0.54, 0.8, 0.45, 0.635, C.offwhite, { ...fabric, fixed: true, plan: false });
+    const pw = mattressW > 1.2 ? (mattressW - 0.14) / 2 : mattressW - 0.16;
     const n = mattressW > 1.2 ? 2 : 1;
     for (let i = 0; i < n; i++) {
-      const x0 = 0.1 + i * (pw + 0.04);
-      b.box(x0, x0 + pw, 0.14, 0.48, 0.5, 0.72, C.offwhite, { ...fabric, round: 1, tilt: 8, fixed: true });
+      const x0 = 0.1 + i * (pw + 0.06);
+      b.part("pillow", x0, x0 + pw, 0.13, 0.55, 0.5, 0.72, C.offwhite, { ...fabric, tilt: 10, fixed: true });
     }
-    b.box(0.0, W, D - 0.55, D - 0.25, 0.58, 0.64, throwColor, { ...fabric, round: 0.8 }); // throw
+    // decorative cushion in the accent colour
+    const cw = Math.min(0.5, mattressW * 0.35);
+    b.part("pillow", W / 2 - cw / 2, W / 2 + cw / 2, 0.5, 0.68, 0.6, 0.76, throwColor, {
+      ...fabric,
+      tilt: 6,
+      plan: false,
+    });
+    // throw across the foot end
+    b.part("throw", 0, W, D - 0.66, D - 0.22, 0.38, 0.68, throwColor, fabric);
   });
 }
 
@@ -432,35 +456,34 @@ const barstool = piece("barhocker", "Barhocker", "kueche", 0.42, 0.42, 0.8, (b) 
 
 // ------------------------------------------------------------------ Bad
 
-const bathtub = piece("badewanne", "Badewanne", "bad", 1.7, 0.75, 0.6, (b) => {
-  const r = 0.06;
-  b.box(0, 1.7, 0, 0.75, 0, 0.58, C.ceramic, gloss);
-  // hollow basin: rim over a lowered inner floor
-  b.box(0, 1.7, 0, r, 0.58, 0.6, C.ceramic, { ...gloss, round: 0.4 });
-  b.box(0, 1.7, 0.75 - r, 0.75, 0.58, 0.6, C.ceramic, { ...gloss, round: 0.4 });
-  b.box(0, r * 1.6, 0, 0.75, 0.58, 0.6, C.ceramic, { ...gloss, round: 0.4 });
-  b.box(1.7 - r, 1.7, 0, 0.75, 0.58, 0.6, C.ceramic, { ...gloss, round: 0.4 });
-  b.box(0.12, 1.62, 0.08, 0.67, 0.58, 0.585, "#d9eef3", { finish: "glas", plan: false });
-  b.cyl(1.63, 0.375, 0.05, 0.6, 0.72, C.chrome, { ...metal, plan: false });
-  b.box(1.5, 1.65, 0.36, 0.39, 0.68, 0.72, C.chrome, { ...metal, plan: false });
+const ceramic = { finish: "keramik" as const };
+const chrome = { finish: "chrom" as const };
+
+const bathtub = piece("badewanne", "Badewanne", "bad", 1.7, 0.75, 0.78, (b) => {
+  b.part("tub", 0, 1.7, 0, 0.75, 0, 0.6, C.ceramic, ceramic);
+  // drain and wall-mounted mixer at the foot end, spout pointing into the tub
+  b.cyl(1.42, 0.375, 0.05, 0.14, 0.146, C.chrome, { ...chrome, plan: false });
+  b.part("faucet", 1.6, 1.65, 0.3, 0.45, 0.6, 0.78, C.chrome, { ...chrome, yaw: 90, plan: false });
 });
 
-const shower = piece("dusche", "Dusche 90x90", "bad", 0.9, 0.9, 2.1, (b) => {
-  b.box(0, 0.9, 0, 0.9, 0, 0.04, C.ceramic, gloss);
-  b.box(0.38, 0.52, 0.38, 0.52, 0.04, 0.042, C.chrome, metal);
-  b.box(0.885, 0.9, 0, 0.9, 0.04, 2.0, C.glass, { finish: "glas" });
-  b.box(0, 0.9, 0.885, 0.9, 0.04, 2.0, C.glass, { finish: "glas" });
-  b.box(0.88, 0.905, 0.88, 0.905, 0.04, 2.0, C.chrome, { ...metal, plan: false });
-  b.cyl(0.08, 0.08, 0.025, 0.04, 2.05, C.chrome, { ...metal, plan: false });
-  b.cyl(0.25, 0.25, 0.3, 2.0, 2.02, C.chrome, { ...metal, plan: false });
-  b.box(0.08, 0.25, 0.07, 0.09, 2.02, 2.04, C.chrome, { ...metal, plan: false });
+const shower = piece("dusche", "Dusche 90x90", "bad", 0.9, 0.9, 2.15, (b) => {
+  b.part("tray", 0, 0.9, 0, 0.9, 0, 0.05, C.ceramic, ceramic);
+  b.cyl(0.45, 0.45, 0.11, 0.03, 0.033, C.chrome, chrome);
+  b.box(0.885, 0.9, 0, 0.9, 0.05, 2.0, C.glass, { finish: "glas" });
+  b.box(0, 0.6, 0.885, 0.9, 0.05, 2.0, C.glass, { finish: "glas" });
+  for (const z of [0.3, 1.7]) b.box(0.876, 0.909, 0.84, 0.88, z, z + 0.08, C.chrome, { ...chrome, plan: false });
+  b.box(0.885, 0.9, 0.0, 0.02, 0.05, 2.0, C.chrome, { ...chrome, plan: false });
+  // rain shower with arm, hand shower bar and thermostat
+  b.cyl(0.45, 0.4, 0.3, 2.07, 2.082, C.chrome, { ...chrome, plan: false });
+  b.box(0.44, 0.46, 0.02, 0.4, 2.09, 2.11, C.chrome, { ...chrome, plan: false });
+  b.cyl(0.45, 0.025, 0.025, 0.9, 2.1, C.chrome, { ...chrome, plan: false });
+  b.box(0.33, 0.57, 0.02, 0.07, 1.0, 1.08, C.chrome, { ...chrome, plan: false });
 });
 
-const wc = piece("wc", "WC wandhängend", "bad", 0.38, 0.56, 1.1, (b) => {
-  b.box(0.01, 0.37, 0, 0.08, 0.3, 1.1, C.white, { ...gloss, plan: false }); // wall box
-  b.box(0.11, 0.27, 0.06, 0.08, 0.95, 1.05, C.chrome, { ...metal, plan: false }); // flush plate
-  b.ell(0.19, 0.33, 0.36, 0.48, 0.25, 0.42, C.ceramic, gloss);
-  b.ell(0.19, 0.33, 0.37, 0.49, 0.42, 0.44, C.ceramic, { ...gloss, plan: false });
+const wc = piece("wc", "WC wandhängend", "bad", 0.38, 0.6, 1.1, (b) => {
+  b.box(0.0, 0.38, 0, 0.07, 0.0, 1.1, C.white, { finish: "glanz", plan: false }); // pre-wall
+  b.box(0.11, 0.27, 0.07, 0.085, 0.95, 1.06, C.chrome, { ...chrome, plan: false }); // flush plate
+  b.part("toilet", 0.01, 0.37, 0.06, 0.6, 0.24, 0.44, C.ceramic, ceramic);
 });
 
 function vanity(id: string, name: string, W: number, basins: number): FurnitureDef {
@@ -473,17 +496,31 @@ function vanity(id: string, name: string, W: number, basins: number): FurnitureD
       const cx = (x0 + x1) / 2;
       b.box(cx - 0.08, cx + 0.08, 0.49, 0.5, 0.75, 0.765, C.black, { ...metal, plan: false });
     }
-    b.box(0, W, 0, 0.5, 0.82, 0.86, C.white, gloss);
+    b.box(0, W, 0, 0.5, 0.82, 0.85, C.white, { finish: "glanz" });
     for (let i = 0; i < basins; i++) {
       const cx = ((i + 0.5) * W) / basins;
-      b.ell(cx, 0.28, 0.42, 0.3, 0.86, 0.87, C.ceramic, gloss);
-      b.ell(cx, 0.28, 0.36, 0.24, 0.87, 0.872, "#e8ecee", { ...gloss, plan: false });
-      b.cyl(cx, 0.08, 0.035, 0.86, 1.1, C.black, { ...metal, plan: false });
-      b.box(cx - 0.0175, cx + 0.0175, 0.08, 0.2, 1.07, 1.1, C.black, { ...metal, plan: false });
+      // countertop vessel basin with a tall mixer behind it
+      b.part("basin", cx - 0.22, cx + 0.22, 0.13, 0.46, 0.85, 0.99, C.ceramic, ceramic);
+      b.part("faucet", cx - 0.022, cx + 0.022, 0.02, 0.21, 0.85, 1.16, C.black, { ...metal });
     }
-    b.box(0.05, W - 0.05, 0, 0.03, 1.15, 1.9, "#cfe3e8", { finish: "glas", plan: false }); // mirror
+    // mirror with a thin frame
+    b.box(0.04, W - 0.04, 0, 0.025, 1.12, 1.9, C.darkgrey, { ...metal, plan: false });
+    b.box(0.055, W - 0.055, 0.02, 0.03, 1.135, 1.885, "#d9dee2", { ...chrome, plan: false });
   });
 }
+
+const towelRail = piece("handtuchheizkoerper", "Handtuchheizkörper mit Handtüchern", "bad", 0.55, 0.14, 1.3, (b) => {
+  b.cyl(0.03, 0.04, 0.03, 0.15, 1.3, C.chrome, chrome);
+  b.cyl(0.52, 0.04, 0.03, 0.15, 1.3, C.chrome, chrome);
+  for (let z = 0.2; z < 1.28; z += 0.11)
+    b.box(0.03, 0.52, 0.03, 0.05, z, z + 0.018, C.chrome, { ...chrome, plan: false });
+  b.part("towel", 0.06, 0.49, 0.045, 0.11, 0.62, 1.23, C.offwhite, fabric);
+  b.part("towel", 0.12, 0.43, 0.08, 0.14, 0.75, 1.24, C.sand, { ...fabric, plan: false });
+});
+
+const bathMat = piece("badematte", "Badematte", "bad", 0.8, 0.5, 0.015, (b) => {
+  b.part("throw", 0, 0.8, 0, 0.5, 0, 0.015, C.offwhite, fabric);
+});
 
 const washer = piece("waschmaschine", "Waschmaschine", "bad", 0.6, 0.6, 0.85, (b) => {
   b.box(0, 0.6, 0, 0.6, 0, 0.85, C.white, gloss);
@@ -615,7 +652,7 @@ export const CATALOG: FurnitureDef[] = [
   // Schlafen
   bed("bett-90", "Einzelbett 90×200", 0.9, C.offwhite, C.sage),
   bed("bett-140", "Bett 140×200", 1.4, C.offwhite, C.terracotta),
-  bed("bett-180", "Doppelbett 180×200", 1.8, C.white, C.sand),
+  bed("bett-180", "Doppelbett 180×200", 1.8, C.offwhite, C.sand),
   bed("bett-200", "Boxspring 200×200", 2.0, C.offwhite, C.blue),
   nightstand,
   wardrobe("schrank-150", "Kleiderschrank 150", 1.5),
@@ -643,6 +680,8 @@ export const CATALOG: FurnitureDef[] = [
   wc,
   vanity("waschtisch", "Waschtisch mit Spiegel", 0.8, 1),
   vanity("doppelwaschtisch", "Doppelwaschtisch mit Spiegel", 1.4, 2),
+  towelRail,
+  bathMat,
   washer,
   // Arbeiten
   desk,

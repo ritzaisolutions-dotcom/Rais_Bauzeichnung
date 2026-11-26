@@ -28,7 +28,7 @@ function getRenderer() {
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.9;
+    renderer.toneMappingExposure = 0.82;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -78,7 +78,8 @@ async function pump() {
 async function renderTopView(def: FurnitureDef, size: Size, lookup: DefLookup, pxPerMeter: number) {
   const gl = getRenderer();
   if (!gl) return null;
-  const obj = await buildFurniture(def, size, lookup);
+  // cut at 1.6 m like a floor plan: shower heads, wall cabinets and lamps above do not cover the view
+  const obj = await buildFurniture(def, size, lookup, 0, { planCut: 1.6 });
   const W = size.w * (1 + 2 * SPRITE_MARGIN);
   const D = size.d * (1 + 2 * SPRITE_MARGIN);
   const scale = Math.min(pxPerMeter, 1600 / Math.max(W, D));
@@ -90,12 +91,14 @@ async function renderTopView(def: FurnitureDef, size: Size, lookup: DefLookup, p
   const scene = new THREE.Scene();
   scene.environment = envMap;
   scene.add(obj);
-  scene.environmentIntensity = 0.45;
-  scene.add(new THREE.HemisphereLight(0xfffaf2, 0x6f675d, 0.45));
+  scene.environmentIntensity = 0.3;
+  scene.add(new THREE.HemisphereLight(0xfffaf2, 0x6f675d, 0.3));
   // slanted light from the back left: cushions, pillows and legs cast small shadows for depth
-  const sun = new THREE.DirectionalLight(0xfff6ea, 2.2);
+  // moderate intensity so white linen keeps its folds instead of burning out
+  const sun = new THREE.DirectionalLight(0xfff6ea, 1.45);
   const reach = Math.max(size.w, size.d, size.h) + 1;
-  sun.position.set(-0.6 * reach, 2 * reach, -0.8 * reach);
+  // low enough to show folds and rims, high enough for short shadows
+  sun.position.set(-1.1 * reach, 1.0 * reach, -1.0 * reach);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.radius = 4;
