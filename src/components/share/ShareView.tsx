@@ -11,6 +11,7 @@ import type { Project } from "@/model/types";
 import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
 import { PlanCanvas } from "../plan/PlanCanvas";
 
+import { Safe3D } from "../three/Safe3D";
 const Scene3D = dynamic(() => import("../three/Scene3D").then((m) => m.Scene3D), {
   ssr: false,
   loading: () => (
@@ -111,7 +112,9 @@ export function ShareView({ token }: { token: string }) {
           )}
           {view !== "2d" && (
             <div className={clsx("h-full min-h-[50vh] min-w-0", view === "split" && "md:border-l border-line")}>
-              <Scene3D />
+              <Safe3D>
+                <Scene3D />
+              </Safe3D>
             </div>
           )}
         </main>

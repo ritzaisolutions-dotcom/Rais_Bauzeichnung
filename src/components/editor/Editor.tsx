@@ -18,6 +18,7 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { Toolbar } from "./Toolbar";
 import { TopBar } from "./TopBar";
 
+import { Safe3D } from "../three/Safe3D";
 const Scene3D = dynamic(() => import("../three/Scene3D").then((m) => m.Scene3D), {
   ssr: false,
   loading: () => (
@@ -157,7 +158,9 @@ export function Editor({ id }: { id: string }) {
           )}
           {view !== "2d" && (
             <div className={clsx("h-full min-w-0", view === "split" && "border-l border-line")}>
-              <Scene3D />
+              <Safe3D>
+                <Scene3D />
+              </Safe3D>
             </div>
           )}
           <IntroCard onHelp={() => setHelpOpen(true)} />

@@ -15,6 +15,13 @@ export default defineConfig({
     env: { ANTHROPIC_API_KEY: "", APP_PASSWORD: "test-passwort", AI_DAILY_LIMIT: "50", LOGIN_RATE_LIMIT: "100" },
   },
   projects: [
+    // Firefox and WebKit run when installed and requested: PW_ALL_BROWSERS=1 npm run test:e2e
+    ...(process.env.PW_ALL_BROWSERS
+      ? [
+          { name: "firefox", use: { ...devices["Desktop Firefox"], viewport: { width: 1600, height: 950 } } },
+          { name: "webkit", use: { ...devices["Desktop Safari"], viewport: { width: 1600, height: 950 } } },
+        ]
+      : []),
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1600, height: 950 }, launchOptions: { args: ["--use-gl=swiftshader", "--ignore-gpu-blocklist"] } },

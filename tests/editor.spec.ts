@@ -437,3 +437,32 @@ test("photoreal image (path tracing) is rendered and downloaded", async ({ page 
   // PNG header: width at byte 16
   expect(png.readUInt32BE(16)).toBe(1280);
 });
+
+test("without WebGL the plan still works and 3D explains why", async ({ browser }) => {
+  const project = JSON.parse(readFileSync("tests/fixtures/share-project.json", "utf8"));
+  const ctx = await browser.newContext();
+  await ctx.addInitScript(() => {
+    const orig = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+      if (type === "webgl" || type === "webgl2") return null;
+      return (orig as (...a: unknown[]) => RenderingContext | null).call(this, type, ...rest);
+    } as typeof orig;
+  });
+  const page = await ctx.newPage();
+  const logged: string[] = [];
+  await page.route("**/api/share/no-webgl", (r) => r.fulfill({ json: { project } }));
+  await page.route("**/api/log", (r) => {
+    logged.push(r.request().postData() ?? "");
+    return r.fulfill({ status: 204 });
+  });
+  await page.goto("/teilen/no-webgl");
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+  await expect(page.getByText("3D ist in diesem Browser nicht verfügbar")).toBeVisible();
+  await expect.poll(() => logged.some((l) => l.includes('"webgl"'))).toBe(true);
+  await ctx.close();
+});
+
+test("client errors can be logged without login and are validated", async ({ request }) => {
+  expect((await request.post("/api/log", { data: { kind: "error", message: "Test" } })).status()).toBe(204);
+  expect((await request.post("/api/log", { data: { kind: "spam" } })).status()).toBe(400);
+});
