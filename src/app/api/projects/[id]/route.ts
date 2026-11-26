@@ -33,8 +33,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return Response.json({ error: "Ungültiges Projekt." }, { status: 400 });
   }
   // images must be uploaded as assets first; inline data would blow up every autosave
-  if (p.floors.some((f) => f.underlay?.dataUrl.startsWith("data:"))) {
-    return Response.json({ error: "Bauzeichnung bitte separat hochladen." }, { status: 400 });
+  if (
+    p.floors.some((f) => f.underlay?.dataUrl.startsWith("data:")) ||
+    (p.customFurniture ?? []).some((d) => d.model?.url.startsWith("data:"))
+  ) {
+    return Response.json({ error: "Bilder und 3D-Modelle bitte separat hochladen." }, { status: 400 });
   }
   try {
     await saveProjectRow(p, body?.baseUpdatedAt);

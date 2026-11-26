@@ -1,6 +1,7 @@
 "use client";
 
 import { produce, setAutoFreeze } from "immer";
+import type { Clip } from "@/model/editing";
 import { useMemo } from "react";
 import { create } from "zustand";
 import { findDef } from "@/furniture/catalog";
@@ -59,6 +60,10 @@ interface EditorState {
   toast: string | null;
   /** Shared view: nothing can be changed or selected. */
   readOnly: boolean;
+  /** Copied walls, furniture and texts (kept across floors). */
+  clipboard: Clip | null;
+  pasteCount: number;
+  setClipboard: (c: Clip | null) => void;
 
   load: (p: Project, opts?: { readOnly?: boolean }) => void;
   setFloor: (id: string) => void;
@@ -99,6 +104,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   revision: 0,
   toast: null,
   readOnly: false,
+  clipboard: null,
+  pasteCount: 0,
+  setClipboard: (c) => set({ clipboard: c, pasteCount: 0 }),
 
   load: (p, opts = {}) =>
     set({

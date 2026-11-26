@@ -2,12 +2,12 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Box, Plus, Trash2, Upload } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { COLOR_SWATCHES, findDef } from "@/furniture/catalog";
 import { listGlobalFurniture, saveGlobalFurniture } from "@/lib/db";
 import { uid } from "@/model/ops";
-import type { FurnitureDef, FurniturePart, PartShape } from "@/model/types";
+import type { FurnitureDef, FurnitureModelRef, FurniturePart, PartShape } from "@/model/types";
 import { useEditor } from "@/store/editor";
 import { FurnitureShape } from "../plan/FurnitureSymbol";
 import { FurnitureModel } from "../three/FurnitureModel";
@@ -110,11 +110,44 @@ function toCm(def: FurnitureDef): PartCm[] {
   }));
 }
 
-function toDef(id: string, name: string, w: number, d: number, h: number, parts: PartCm[]): FurnitureDef {
+/** Largest uploaded model; bigger files make projects slow to save and load. */
+const MAX_GLB_BYTES = 2_800_000;
+
+/** Reads a GLB/glTF file and measures it (meters, y up). */
+async function readModelFile(file: File): Promise<{ url: string; w: number; d: number; h: number }> {
+  if (file.size > MAX_GLB_BYTES)
+    throw new Error(
+      `Die Datei ist ${(file.size / 1e6).toFixed(1)} MB groß. Erlaubt sind bis 2,8 MB; bitte vorher verkleinern (z. B. mit gltf.report).`,
+    );
+  const url = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve((r.result as string).replace(/^data:[^;]*;/, "data:model/gltf-binary;"));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+  const [{ loadModel }, THREE] = await Promise.all([import("../three/build"), import("three")]);
+  const obj = await loadModel(url).catch(() => {
+    throw new Error("Die Datei konnte nicht als 3D-Modell gelesen werden. Unterstützt wird GLB (glTF binär).");
+  });
+  const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  if (!(size.x > 0 && size.y > 0 && size.z > 0)) throw new Error("Das Modell ist leer.");
+  return { url, w: size.x, d: size.z, h: size.y };
+}
+
+function toDef(
+  id: string,
+  name: string,
+  w: number,
+  d: number,
+  h: number,
+  parts: PartCm[],
+  model?: FurnitureModelRef | null,
+): FurnitureDef {
   const W = w / 100;
   const D = d / 100;
   const H = h / 100;
   return {
+    ...(model ? { model } : {}),
     id,
     name: name || "Eigenes Möbel",
     category: "eigene",
@@ -161,15 +194,68 @@ function CustomFurnitureForm({ initial, onClose }: { initial: FurnitureDef | nul
   const [parts, setParts] = useState<PartCm[]>(() => (initial ? toCm(initial) : tpl.parts(tpl.w, tpl.d, tpl.h)));
   const [global, setGlobal] = useState(true);
   const [active, setActive] = useState(0);
+  const [model, setModel] = useState<FurnitureModelRef | null>(initial?.model ?? null);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelBusy, setModelBusy] = useState(false);
+  const modelInput = useRef<HTMLInputElement>(null);
+
+  const uploadModel = async (file: File) => {
+    setModelBusy(true);
+    setModelError(null);
+    try {
+      const m = await readModelFile(file);
+      const cm = (v: number) => Math.max(1, Math.round(v * 100));
+      setModel({ url: m.url, w: m.w, d: m.d, h: m.h, rotY: 0 });
+      setW(cm(m.w));
+      setD(cm(m.d));
+      setH(cm(m.h));
+      if (!name) setName(file.name.replace(/\.(glb|gltf)$/i, ""));
+      // the parts only draw the 2D symbol now: one block with the footprint
+      setParts([
+        {
+          shape: "box",
+          x: cm(m.w) / 2,
+          y: cm(m.d) / 2,
+          w: cm(m.w),
+          d: cm(m.d),
+          z: 0,
+          h: cm(m.h),
+          color: "#d9d4cb",
+          finish: "matt",
+        },
+      ]);
+      setActive(0);
+    } catch (e) {
+      setModelError(e instanceof Error ? e.message : "Das Modell konnte nicht geladen werden.");
+    } finally {
+      setModelBusy(false);
+    }
+  };
+
+  const turnModel = (deg: number) => {
+    if (!model) return;
+    const rotY = (((model.rotY + deg) % 360) + 360) % 360;
+    // a quarter turn swaps width and depth
+    const swap = Math.abs(deg) % 180 === 90;
+    setModel({ ...model, rotY });
+    if (swap) {
+      setW(d);
+      setD(w);
+      setParts((ps) => ps.map((x) => ({ ...x, x: x.y, y: x.x, w: x.d, d: x.w })));
+    }
+  };
 
   const previewId = initial?.id ?? "preview";
-  const preview = useMemo(() => toDef(previewId, name, w, d, h, parts), [previewId, name, w, d, h, parts]);
+  const preview = useMemo(
+    () => toDef(previewId, name, w, d, h, parts, model),
+    [previewId, name, w, d, h, parts, model],
+  );
   const p = parts[active];
   const updPart = (patch: Partial<PartCm>) =>
     setParts((ps) => ps.map((x, i) => (i === active ? { ...x, ...patch } : x)));
 
   const save = async () => {
-    const def = toDef(initial?.id ?? `custom-${uid()}`, name, w, d, h, parts);
+    const def = toDef(initial?.id ?? `custom-${uid()}`, name, w, d, h, parts, model);
     useEditor.getState().mutateProject((pr) => {
       const idx = pr.customFurniture.findIndex((x) => x.id === def.id);
       if (idx >= 0) pr.customFurniture[idx] = def;
@@ -206,6 +292,52 @@ function CustomFurnitureForm({ initial, onClose }: { initial: FurnitureDef | nul
             </div>
           </Field>
         )}
+        <div className="rounded-lg border border-line p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted">3D-Modell (optional)</span>
+            <Button size="sm" disabled={modelBusy} onClick={() => modelInput.current?.click()} data-testid="glb-upload">
+              <Upload size={14} /> {model ? "Anderes Modell" : "GLB hochladen"}
+            </Button>
+            <input
+              ref={modelInput}
+              type="file"
+              accept=".glb,model/gltf-binary"
+              className="hidden"
+              data-testid="glb-file"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadModel(f);
+                e.target.value = "";
+              }}
+            />
+          </div>
+          {modelError && <p className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">{modelError}</p>}
+          {model ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <Box size={14} className="text-accent" />
+              <span data-testid="glb-size">
+                Modell geladen, {w} × {d} × {h} cm
+              </span>
+              <Button size="sm" onClick={() => turnModel(90)} title="Vorderseite muss im Plan nach unten zeigen">
+                Drehen 90°
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setModel(null);
+                  setModelError(null);
+                }}
+              >
+                Entfernen
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-muted">
+              Z. B. von Herstellern oder aus Sketchfab, bis 2,8 MB. Maße werden aus dem Modell übernommen.
+            </p>
+          )}
+        </div>
         <Field label="Name">
           <TextInput value={name} placeholder="z. B. Vitrine Kundin Zers" onChange={(e) => setName(e.target.value)} />
         </Field>

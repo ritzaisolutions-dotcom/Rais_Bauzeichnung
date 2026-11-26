@@ -40,8 +40,8 @@ export function ShareDialog({ projectId, open, onClose }: { projectId: string; o
     <Dialog open={open} onClose={onClose} title="Projekt teilen">
       <div className="space-y-4 text-sm">
         <p className="text-muted">
-          Mit dem Link sehen Ihre Kunden den eingerichteten Grundriss, die 3D-Ansicht und die Flächenliste. Ein
-          Passwort brauchen sie nicht, bearbeiten können sie nichts. Änderungen am Projekt erscheinen sofort.
+          Mit dem Link sehen Ihre Kunden den eingerichteten Grundriss, die 3D-Ansicht und die Flächenliste. Ein Passwort
+          brauchen sie nicht, bearbeiten können sie nichts. Änderungen am Projekt erscheinen sofort.
         </p>
         {error && <p className="rounded-md bg-red-50 p-2 text-red-700">{error}</p>}
         {url ? (
@@ -65,7 +65,11 @@ export function ShareDialog({ projectId, open, onClose }: { projectId: string; o
               </Button>
             </div>
             <div className="flex justify-between gap-2">
-              <Button disabled={busy} onClick={() => void run("revoke")} title="Der bisherige Link funktioniert danach nicht mehr">
+              <Button
+                disabled={busy}
+                onClick={() => void run("revoke")}
+                title="Der bisherige Link funktioniert danach nicht mehr"
+              >
                 <Link2Off size={15} /> Link deaktivieren
               </Button>
               <Button onClick={onClose}>Schließen</Button>

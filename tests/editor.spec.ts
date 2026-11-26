@@ -30,7 +30,7 @@ test("sample flat shows rooms with areas and can be staged", async ({ page }) =>
   for (const name of ["Wohnen / Essen", "Schlafen", "Bad", "WC", "HWR", "Flur", "Zimmer"]) {
     await expect(table.getByText(name, { exact: true })).toBeVisible();
   }
-  await page.getByText("Alle Räume einrichten").click();
+  await page.getByRole("button", { name: "Alle Räume einrichten" }).click();
   await expect(page.locator('[data-kind="item"]').first()).toBeVisible();
   expect(await page.locator('[data-kind="item"]').count()).toBeGreaterThan(15);
   // one undo step removes all staged furniture
@@ -240,4 +240,53 @@ test("AI import shows a preview for a crop and only applies it on accept", async
   await expect(page.getByText(/KI-Ergebnis übernommen/)).toBeVisible();
   // room area label from the derived room (5.76 × 3.76 m)
   await expect(page.getByTestId("plan-canvas")).toContainText("21,66 m²");
+});
+
+test("frame selection, copy and paste onto another floor", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "Kopieren");
+  const walls = await page.locator('[data-kind="wall"]').count();
+  expect(walls).toBeGreaterThan(5);
+  const box = (await page.getByTestId("plan-canvas").boundingBox())!;
+  // shift + drag around the whole canvas
+  await page.keyboard.down("Shift");
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.move(box.x + box.width - 5, box.y + box.height - 5, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Control+c");
+  await expect(page.getByText(/Kopiert/)).toBeVisible();
+  // new empty floor, paste at the same position
+  await page.getByTestId("floor-menu").locator("button").first().click();
+  await page.getByText("Neue leere Etage").click();
+  await expect(page.locator('[data-kind="wall"]')).toHaveCount(0);
+  await page.keyboard.press("Control+v");
+  await expect(page.locator('[data-kind="wall"]')).toHaveCount(walls);
+  await expect(page.locator('[data-kind="room"]').first()).toBeVisible();
+  // undo removes the paste in one step
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('[data-kind="wall"]')).toHaveCount(0);
+});
+
+test("help opens with ? and the intro can be dismissed", async ({ page }) => {
+  await newProject(page, "Leerer Grundriss");
+  await expect(page.getByTestId("intro")).toBeVisible();
+  await page.getByTestId("intro").getByText("Verstanden").click();
+  await expect(page.getByTestId("intro")).toHaveCount(0);
+  await page.keyboard.press("?");
+  await expect(page.getByRole("dialog", { name: "Tastenkürzel und Bedienung" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+  await expect(page.getByTestId("intro")).toHaveCount(0);
+});
+
+test("custom furniture from an uploaded GLB model", async ({ page }) => {
+  await newProject(page, "Leerer Grundriss");
+  await page.getByText("Eigenes Möbel").click();
+  await page.getByTestId("glb-file").setInputFiles("public/models/ceramic_vase_01.glb");
+  await expect(page.getByTestId("glb-size")).toContainText("Modell geladen");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByText("ceramic_vase_01").first()).toBeVisible();
 });

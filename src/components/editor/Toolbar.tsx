@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CircleHelp,
   DoorOpen,
   Eye,
   EyeOff,
@@ -51,7 +52,15 @@ const LAYERS: { id: keyof LayerState; label: string }[] = [
   { id: "snapUnderlay", label: "An Zeichnung fangen" },
 ];
 
-export function Toolbar({ libraryOpen, onToggleLibrary }: { libraryOpen: boolean; onToggleLibrary: () => void }) {
+export function Toolbar({
+  libraryOpen,
+  onToggleLibrary,
+  onHelp,
+}: {
+  libraryOpen: boolean;
+  onToggleLibrary: () => void;
+  onHelp?: () => void;
+}) {
   const tool = useEditor((s) => s.tool);
   const layers = useEditor((s) => s.layers);
   const wallType = useEditor((s) => s.wallType);
@@ -89,6 +98,11 @@ export function Toolbar({ libraryOpen, onToggleLibrary }: { libraryOpen: boolean
       <IconButton label="Ebenen" active={layersOpen} onClick={() => setLayersOpen(!layersOpen)}>
         <Layers size={18} />
       </IconButton>
+      {onHelp && (
+        <IconButton label="Hilfe und Tastenkürzel (?)" onClick={onHelp}>
+          <CircleHelp size={18} />
+        </IconButton>
+      )}
 
       {(tool === "wall" || tool === "room") && (
         <div className="absolute left-14 top-2 z-20 w-56 space-y-2 rounded-lg border border-line bg-panel p-3 shadow-lg">

@@ -45,10 +45,12 @@ function Menu({
   label,
   icon,
   children,
+  align = "right",
 }: {
   label: string;
   icon: React.ReactNode;
   children: (close: () => void) => React.ReactNode;
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,7 +68,12 @@ function Menu({
         <ChevronDown size={14} />
       </Button>
       {open && (
-        <div className="absolute right-0 top-9 z-40 w-64 rounded-lg border border-line bg-panel p-1 shadow-xl">
+        <div
+          className={clsx(
+            "absolute top-9 z-40 w-64 rounded-lg border border-line bg-panel p-1 shadow-xl",
+            align === "left" ? "left-0" : "right-0",
+          )}
+        >
           {children(() => setOpen(false))}
         </div>
       )}
@@ -183,7 +190,9 @@ export function TopBar({
             {f.name}
           </button>
         ))}
-        <Menu label="" icon={<Plus size={14} />}>
+      </div>
+      <div data-testid="floor-menu">
+        <Menu label="" icon={<Plus size={14} />} align="left">
           {(close) => (
             <>
               <MenuItem

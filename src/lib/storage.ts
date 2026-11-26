@@ -20,6 +20,7 @@ const uploaded = new Map<string, string>(); // assetId -> fingerprint
 
 const fingerprint = (s: string) => `${s.length}:${s.slice(64, 96)}:${s.slice(-48)}`;
 const assetId = (projectId: string, floorId: string) => `${projectId}-underlay-${floorId}`;
+const modelAssetId = (projectId: string, defId: string) => `${projectId}-model-${defId}`;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...init?.headers } });
@@ -73,6 +74,9 @@ export async function loadProject(id: string): Promise<Project | null> {
       for (const f of project.floors) {
         if (f.underlay?.dataUrl.startsWith("data:")) uploaded.set(assetId(id, f.id), fingerprint(f.underlay.dataUrl));
       }
+      for (const d of project.customFurniture ?? []) {
+        if (d.model?.url.startsWith("data:")) uploaded.set(modelAssetId(id, d.id), fingerprint(d.model.url));
+      }
       return project;
     } catch (e) {
       if ((e as { status?: number }).status !== 404) throw e;
@@ -84,7 +88,7 @@ export async function loadProject(id: string): Promise<Project | null> {
 export async function saveProject(p: Project) {
   if (!(await isCloud())) return local.saveProject(p);
   // upload changed drawings separately; the project itself only keeps references to them
-  const uploads: { id: string; fp: string; data: string }[] = [];
+  const uploads: { id: string; fp: string; data: string; kind?: string }[] = [];
   const floors = p.floors.map((f) => {
     const u = f.underlay;
     if (!u?.dataUrl.startsWith("data:")) return f;
@@ -93,15 +97,22 @@ export async function saveProject(p: Project) {
     if (uploaded.get(id) !== fp) uploads.push({ id, fp, data: u.dataUrl });
     return { ...f, underlay: { ...u, dataUrl: `asset:${id}` } };
   });
+  const customFurniture = (p.customFurniture ?? []).map((d) => {
+    if (!d.model?.url.startsWith("data:")) return d;
+    const id = modelAssetId(p.id, d.id);
+    const fp = fingerprint(d.model.url);
+    if (uploaded.get(id) !== fp) uploads.push({ id, fp, data: d.model.url, kind: "model" });
+    return { ...d, model: { ...d.model, url: `asset:${id}` } };
+  });
   await api(`/api/projects/${encodeURIComponent(p.id)}`, {
     method: "PUT",
-    body: JSON.stringify({ project: { ...p, floors }, baseUpdatedAt: lastSaved.get(p.id) }),
+    body: JSON.stringify({ project: { ...p, floors, customFurniture }, baseUpdatedAt: lastSaved.get(p.id) }),
   });
   lastSaved.set(p.id, p.updatedAt);
   for (const up of uploads) {
     await api(`/api/projects/${encodeURIComponent(p.id)}/assets/${encodeURIComponent(up.id)}`, {
       method: "PUT",
-      body: JSON.stringify({ kind: "underlay", data: up.data }),
+      body: JSON.stringify({ kind: up.kind ?? "underlay", data: up.data }),
     });
     uploaded.set(up.id, up.fp);
   }

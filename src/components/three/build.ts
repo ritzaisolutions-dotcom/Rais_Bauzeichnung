@@ -192,8 +192,11 @@ export async function buildFurniture(
       const turn = new THREE.Group();
       turn.rotation.y = def.model.rotY * DEG;
       turn.add(obj);
+      // scale against the model's own size (turned), so edited dimensions stretch it correctly
+      const m = def.model;
+      const swap = Math.abs(m.rotY % 180) === 90;
       const scaled = new THREE.Group();
-      scaled.scale.set(sx, sy, sz);
+      scaled.scale.set(size.w / (swap ? m.d : m.w), size.h / m.h, size.d / (swap ? m.w : m.d));
       scaled.add(turn);
       group.add(scaled);
       modelDone = true;

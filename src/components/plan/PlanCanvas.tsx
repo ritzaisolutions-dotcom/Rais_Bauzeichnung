@@ -34,6 +34,7 @@ import type { Floor, OpeningKind, Vec2 } from "@/model/types";
 import { wallFrames, wallRect } from "@/model/walls";
 import { registry } from "@/lib/registry";
 import { thicknessAlong, type UnderlayLines } from "@/lib/underlayLines";
+import { collidingItems, copySelection, pasteClip, selectInRect, snapItemToWall } from "@/model/editing";
 import { useUnderlayLines } from "@/lib/underlaySnap";
 import { useActiveFloor, useEditor, useFurnitureDefs, type Tool } from "@/store/editor";
 import { MaterialPatterns, PlanLayers } from "./PlanLayers";
@@ -49,7 +50,8 @@ type Drag =
   | { type: "label"; id: string; start: Vec2; orig: Vec2; moved: boolean }
   | { type: "dimension"; id: string; start: Vec2; a: Vec2; b: Vec2; moved: boolean }
   | { type: "rotate"; id: string; center: Vec2; moved: boolean }
-  | { type: "rect"; start: Vec2 };
+  | { type: "rect"; start: Vec2 }
+  | { type: "marquee"; start: Vec2; additive: boolean };
 
 const OPENING_TOOLS: Partial<Record<Tool, OpeningKind>> = {
   door: "tuer",
@@ -191,6 +193,11 @@ export function PlanCanvas() {
   const wallThickness = useEditor((s) => s.wallThickness);
   const { mutate, checkpoint, select, setTool, setPlacing } = useEditor.getState();
   const readOnly = useEditor((s) => s.readOnly);
+  const [marquee, setMarquee] = useState<{ a: Vec2; b: Vec2 } | null>(null);
+  const colliding = useMemo(
+    () => (floor && !presentation && !readOnly ? collidingItems(floor) : new Set<string>()),
+    [floor, presentation, readOnly],
+  );
   const drawn = useUnderlayLines(
     floor?.underlay,
     !!floor?.underlay?.visible && layers.underlay && layers.snapUnderlay && !readOnly,
@@ -469,6 +476,46 @@ export function PlanCanvas() {
         });
         return;
       }
+      if (mod && ["c", "x", "v", "d"].includes(e.key.toLowerCase())) {
+        const k = e.key.toLowerCase();
+        const f = floor!;
+        if (k !== "v") {
+          const clip = copySelection(f, st.selection);
+          if (!clip) return;
+          e.preventDefault();
+          st.setClipboard(clip);
+          if (k === "x") {
+            st.mutate((fl) => {
+              for (const s of st.selection) {
+                if (s.kind === "wall") deleteWall(fl, s.id);
+                if (s.kind === "opening") fl.openings = fl.openings.filter((o) => o.id !== s.id);
+                if (s.kind === "item") fl.items = fl.items.filter((o) => o.id !== s.id);
+                if (s.kind === "label") fl.labels = fl.labels.filter((o) => o.id !== s.id);
+                if (s.kind === "dimension") fl.dimensions = fl.dimensions.filter((o) => o.id !== s.id);
+              }
+            });
+            st.select(null);
+            return;
+          }
+          if (k === "c") {
+            st.showToast("Kopiert. Mit Strg+V einfügen, auch auf einer anderen Etage.");
+            return;
+          }
+        }
+        const clip = useEditor.getState().clipboard;
+        if (!clip) return;
+        e.preventDefault();
+        // on the same floor, each paste moves 50 cm further; on another floor it keeps the position
+        const n = useEditor.getState().pasteCount + 1;
+        const off = clip.sourceFloorId === f.id || k === "d" ? 0.5 * n : 0;
+        let sel: ReturnType<typeof pasteClip> = [];
+        st.mutate((fl) => {
+          sel = pasteClip(fl, clip, { x: off, y: off });
+        });
+        useEditor.setState({ pasteCount: n });
+        st.select(sel);
+        return;
+      }
       if (mod) return;
       const map: Record<string, Tool> = {
         v: "select",
@@ -633,8 +680,14 @@ export function PlanCanvas() {
 
     // select tool
     const hit = hitTarget(e);
-    if (!hit || hit.kind === "bg") {
-      if (!e.shiftKey) select(null);
+    if (!hit || hit.kind === "bg" || (hit.kind === "room" && e.shiftKey)) {
+      if (e.shiftKey && !readOnly) {
+        // shift + drag: frame selection
+        drag.current = { type: "marquee", start: p, additive: true };
+        setMarquee({ a: p, b: p });
+        return;
+      }
+      select(null);
       drag.current = { type: "pan", sx: e.clientX, sy: e.clientY, ox: v.ox, oy: v.oy };
       return;
     }
@@ -740,10 +793,19 @@ export function PlanCanvas() {
               if (!it) continue;
               it.x = Math.round((o.x + delta.x) / g) * g;
               it.y = Math.round((o.y + delta.y) / g) * g;
+              // a single piece docks to walls with its back (Alt: free placement)
+              if (d.orig.size === 1 && !free && !it.elevation) {
+                const s = snapItemToWall(f, it, { x: it.x, y: it.y }, 12 / px + 0.05);
+                if (s) Object.assign(it, s);
+              }
             }
           },
           { history: false, normalize: false },
         );
+        break;
+      }
+      case "marquee": {
+        setMarquee({ a: d.start, b: p });
         break;
       }
       case "rotate": {
@@ -855,6 +917,14 @@ export function PlanCanvas() {
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     const d = drag.current;
     drag.current = null;
+    if (d?.type === "marquee") {
+      const end = toWorld(e.clientX, e.clientY);
+      setMarquee(null);
+      if (Math.abs(end.x - d.start.x) * px > 4 || Math.abs(end.y - d.start.y) * px > 4) {
+        select(selectInRect(floor, d.start, end), d.additive);
+      }
+      return;
+    }
     if (d?.type === "rect" && rectStart) {
       const end = snapPoint(floor, toWorld(e.clientX, e.clientY), px, { free: e.altKey }).p;
       const x = Math.min(rectStart.x, end.x);
@@ -1257,6 +1327,37 @@ export function PlanCanvas() {
           {openingPreview}
           {ghost}
           {calibLine}
+          {colliding.size > 0 &&
+            floor.items
+              .filter((it) => colliding.has(it.id))
+              .map((it) => (
+                <polygon
+                  key={`hit-${it.id}`}
+                  points={pts(rectCorners(it.x, it.y, it.w, it.d, it.rotation))}
+                  fill="#dc2626"
+                  fillOpacity={0.08}
+                  stroke="#dc2626"
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: "none" }}
+                  data-testid="collision"
+                />
+              ))}
+          {marquee && (
+            <rect
+              x={Math.min(marquee.a.x, marquee.b.x)}
+              y={Math.min(marquee.a.y, marquee.b.y)}
+              width={Math.abs(marquee.b.x - marquee.a.x)}
+              height={Math.abs(marquee.b.y - marquee.a.y)}
+              fill="#c2410c"
+              fillOpacity={0.06}
+              stroke="#c2410c"
+              strokeWidth={1}
+              strokeDasharray="5 3"
+              vectorEffect="non-scaling-stroke"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
           {drawn && (tool === "wall" || tool === "room") && (
             <g style={{ pointerEvents: "none" }} data-testid="drawn-walls">
               {drawn.axes.map((a, i) =>

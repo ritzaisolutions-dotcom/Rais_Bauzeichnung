@@ -11,6 +11,7 @@ import { planPngBlob } from "@/lib/exports";
 import { useEditor } from "@/store/editor";
 import { PlanCanvas } from "../plan/PlanCanvas";
 import { ChatPanel } from "./ChatPanel";
+import { HelpDialog, IntroCard } from "./HelpDialog";
 import { ImportDialog } from "./ImportDialog";
 import { LibraryPanel } from "./LibraryPanel";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -41,6 +42,17 @@ export function Editor({ id }: { id: string }) {
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "?") setHelpOpen((o) => !o);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const lastThumb = useRef(0);
 
   useEffect(() => {
@@ -127,7 +139,11 @@ export function Editor({ id }: { id: string }) {
         onToggleChat={() => setChatOpen(!chatOpen)}
       />
       <div className="flex min-h-0 flex-1">
-        <Toolbar libraryOpen={libraryOpen} onToggleLibrary={() => setLibraryOpen(!libraryOpen)} />
+        <Toolbar
+          libraryOpen={libraryOpen}
+          onToggleLibrary={() => setLibraryOpen(!libraryOpen)}
+          onHelp={() => setHelpOpen(true)}
+        />
         {libraryOpen && (
           <aside className="w-60 shrink-0 border-r border-line bg-panel">
             <LibraryPanel />
@@ -144,6 +160,7 @@ export function Editor({ id }: { id: string }) {
               <Scene3D />
             </div>
           )}
+          <IntroCard onHelp={() => setHelpOpen(true)} />
           {toast && (
             <div className="absolute left-1/2 top-3 z-30 flex max-w-xl -translate-x-1/2 items-start gap-2 rounded-lg bg-ink px-4 py-2 text-sm text-white shadow-lg">
               <span>{toast}</span>
@@ -158,6 +175,7 @@ export function Editor({ id }: { id: string }) {
         </aside>
       </div>
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

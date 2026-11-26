@@ -98,18 +98,29 @@ export async function getAssets(projectId: string) {
   return rest<{ id: string; data: string }[]>(`rais_assets?project_id=eq.${enc(projectId)}&select=id,data`);
 }
 
-/** Replaces `asset:<id>` markers in underlays with the stored images. */
+/** Replaces `asset:<id>` markers (drawings, custom 3D models) with the stored data. */
 export async function expandAssets(p: Project): Promise<Project> {
-  const refs = p.floors.some((f) => f.underlay?.dataUrl.startsWith("asset:"));
+  const isRef = (v?: string) => !!v?.startsWith("asset:");
+  const refs =
+    p.floors.some((f) => isRef(f.underlay?.dataUrl)) || (p.customFurniture ?? []).some((d) => isRef(d.model?.url));
   if (!refs) return p;
   const assets = new Map((await getAssets(p.id)).map((a) => [a.id, a.data]));
   return {
     ...p,
     floors: p.floors.map((f) => {
       const ref = f.underlay?.dataUrl;
-      if (!f.underlay || !ref?.startsWith("asset:")) return f;
-      const data = assets.get(ref.slice(6));
+      if (!f.underlay || !isRef(ref)) return f;
+      const data = assets.get(ref!.slice(6));
       return data ? { ...f, underlay: { ...f.underlay, dataUrl: data } } : { ...f, underlay: undefined };
+    }),
+    customFurniture: (p.customFurniture ?? []).map((d) => {
+      if (!d.model || !isRef(d.model.url)) return d;
+      const data = assets.get(d.model.url.slice(6));
+      if (data) return { ...d, model: { ...d.model, url: data } };
+      // model missing: fall back to the simple parts
+      const { model: _gone, ...rest } = d;
+      void _gone;
+      return rest;
     }),
   };
 }
