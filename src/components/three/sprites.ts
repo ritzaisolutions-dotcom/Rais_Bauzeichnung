@@ -78,8 +78,8 @@ async function pump() {
 async function renderTopView(def: FurnitureDef, size: Size, lookup: DefLookup, pxPerMeter: number) {
   const gl = getRenderer();
   if (!gl) return null;
-  // cut at 1.6 m like a floor plan: shower heads, wall cabinets and lamps above do not cover the view
-  const obj = await buildFurniture(def, size, lookup, 0, { planCut: 1.6 });
+  // cut at 1.4 m like a floor plan: shower heads, wall cabinets and lamps above do not cover the view
+  const obj = await buildFurniture(def, size, lookup, 0, { planCut: 1.4 });
   const W = size.w * (1 + 2 * SPRITE_MARGIN);
   const D = size.d * (1 + 2 * SPRITE_MARGIN);
   const scale = Math.min(pxPerMeter, 1600 / Math.max(W, D));

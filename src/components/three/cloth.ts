@@ -1,6 +1,7 @@
 // Procedural textiles: duvet, pillow, throw and towel. Pure geometry (no WebGL needed),
 // all centered on the part box: x across, y up, z along the depth (front = +z).
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /** Smooth deterministic value noise in [-1, 1]. */
@@ -205,4 +206,30 @@ export function towelGeometry(w: number, h: number, d: number, seed = 9) {
     pos.setXYZ(i, x * w * (1 - 0.03 * Math.abs(wave)), y * h, (zz + wave * 0.5) * d);
   }
   return finish(geo);
+}
+
+/**
+ * Upholstered cushion (sofa seat, back or arm): rounded edges, the top bulges up,
+ * the sides bow out a little; seams and the underside get baked shading.
+ */
+export function cushionGeometry(w: number, h: number, d: number, seed = 2) {
+  const r = Math.min(w, h, d) * 0.28;
+  const geo = new RoundedBoxGeometry(w, h, d, 6, r);
+  // RoundedBoxGeometry has few interior vertices; refine by re-sampling a subdivided box onto it
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const shade = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) / w;
+    const y = pos.getY(i) / h;
+    const z = pos.getZ(i) / d;
+    const plan = (1 - Math.pow(Math.abs(2 * x), 3)) * (1 - Math.pow(Math.abs(2 * z), 3));
+    const topness = Math.max(0, y + 0.1) / 0.6;
+    const bulge = Math.min(0.04, h * 0.22) * plan * topness;
+    const bow = 1 + 0.035 * (1 - Math.pow(Math.abs(2 * y), 2));
+    const crease = noise2(x * 5 + seed, z * 5, seed) * 0.004 * plan;
+    pos.setXYZ(i, pos.getX(i) * bow, pos.getY(i) + bulge + crease, pos.getZ(i) * bow);
+    const edge = Math.max(Math.abs(2 * x), Math.abs(2 * z));
+    shade[i] = 1 - 0.28 * Math.max(0, -y - 0.1) - 0.12 * Math.pow(edge, 6) * (y > 0 ? 1 : 0.5);
+  }
+  return finish(withShade(geo, shade));
 }

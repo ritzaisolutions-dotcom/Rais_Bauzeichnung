@@ -8,9 +8,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { partColor } from "@/model/materials";
 import type { FurnitureDef, FurnitureItem, FurniturePart } from "@/model/types";
-import { drapedClothGeometry, pillowGeometry, towelGeometry } from "./cloth";
+import { cushionGeometry, drapedClothGeometry, pillowGeometry, towelGeometry } from "./cloth";
 import { partMaterial } from "./materials";
-import { basinGeometry, bathtubGeometry, faucetGeometry, toiletGeometry, trayGeometry } from "./sanitary";
+import { basinGeometry, bathtubGeometry, faucetGeometry, sinkGeometry, toiletGeometry, trayGeometry } from "./sanitary";
 
 const DEG = Math.PI / 180;
 type Size = Pick<FurnitureItem, "w" | "d" | "h" | "color">;
@@ -73,6 +73,12 @@ function organic(shape: FurniturePart["shape"], w: number, h: number, d: number,
       break;
     case "faucet":
       g = faucetGeometry(w, h, d);
+      break;
+    case "cushion":
+      g = cushionGeometry(w, h, d, seed);
+      break;
+    case "sink":
+      g = sinkGeometry(w, h, d);
       break;
     default:
       return null;

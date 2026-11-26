@@ -65,7 +65,9 @@ export const FurnitureShape = memo(function FurnitureShape({
           vectorEffect: "non-scaling-stroke" as const,
         };
         if (p.shape === "faucet") return null;
-        const rectLike = ["box", "duvet", "throw", "pillow", "towel", "tub", "tray"].includes(p.shape);
+        const rectLike = ["box", "duvet", "throw", "pillow", "towel", "tub", "tray", "cushion", "sink"].includes(
+          p.shape,
+        );
         if (rectLike) {
           const soft = p.finish === "stoff" || p.shape === "tub" || p.shape === "pillow";
           const r = soft ? Math.min(pw, pd) * (p.shape === "pillow" ? 0.3 : 0.12) : 0;

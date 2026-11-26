@@ -50,6 +50,23 @@ export function partMaterial(color: string, finish: FurniturePart["finish"], ver
         side: THREE.DoubleSide,
       });
       break;
+    case "stein":
+      // quartz / marble worktop with soft veins
+      m = new THREE.MeshPhysicalMaterial({
+        color,
+        map: stoneVeins(),
+        roughness: 0.22,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.15,
+      });
+      break;
+    case "lack":
+      // satin lacquered cabinet fronts
+      m = new THREE.MeshPhysicalMaterial({ color, roughness: 0.38, clearcoat: 0.35, clearcoatRoughness: 0.3 });
+      break;
+    case "edelstahl":
+      m = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 1, envMapIntensity: 1.2 });
+      break;
     case "chrom":
       m = new THREE.MeshStandardMaterial({ color, roughness: 0.08, metalness: 1, envMapIntensity: 1.4 });
       break;
@@ -270,4 +287,52 @@ export function woodGrain(): THREE.Texture {
   wood.wrapT = THREE.RepeatWrapping;
   wood.anisotropy = 8;
   return wood;
+}
+
+let stone: THREE.Texture | null = null;
+/** Light stone texture with fine grain and a few soft veins; the material colour tints it. */
+export function stoneVeins(): THREE.Texture {
+  if (stone) return stone;
+  const size = 1024;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#f4f4f2";
+  g.fillRect(0, 0, size, size);
+  let seed = 23;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  for (let i = 0; i < 26000; i++) {
+    const v = 200 + Math.floor(rnd() * 55);
+    g.fillStyle = `rgba(${v},${v},${v},0.35)`;
+    g.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 2, 1 + rnd() * 2);
+  }
+  for (let i = 0; i < 9; i++) {
+    let x = rnd() * size;
+    let y = rnd() * size;
+    const ang = rnd() * Math.PI;
+    for (let layer = 0; layer < 3; layer++) {
+      g.strokeStyle = `rgba(150,150,155,${0.08 + layer * 0.05})`;
+      g.lineWidth = 6 - layer * 2;
+      g.beginPath();
+      g.moveTo(x, y);
+      let a = ang;
+      for (let k = 0; k < 40; k++) {
+        a += (rnd() - 0.5) * 0.5;
+        x += Math.cos(a) * 22;
+        y += Math.sin(a) * 22;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+  }
+  stone = new THREE.CanvasTexture(c);
+  stone.colorSpace = THREE.SRGBColorSpace;
+  stone.wrapS = THREE.RepeatWrapping;
+  stone.wrapT = THREE.RepeatWrapping;
+  stone.anisotropy = 8;
+  return stone;
 }

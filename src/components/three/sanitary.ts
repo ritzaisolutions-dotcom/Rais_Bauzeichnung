@@ -223,3 +223,24 @@ export function faucetGeometry(w: number, h: number, d: number) {
   }
   return done(mergeGeometries([base.toNonIndexed(), spout.toNonIndexed(), lever.toNonIndexed()])!);
 }
+
+/** Undermount kitchen sink: rectangular deep basin with a thin flange that sits flush with the worktop. */
+export function sinkGeometry(w: number, h: number, d: number) {
+  const top = h / 2;
+  const outerTop: Ring = { a: w / 2, b: d / 2, y: top, n: 12 };
+  const innerTop: Ring = { a: w / 2 - 0.02, b: d / 2 - 0.02, y: top - 0.002, n: 10 };
+  return done(
+    loft(
+      [
+        { ...outerTop, y: top - 0.004 },
+        outerTop,
+        innerTop,
+        { ...innerTop, y: top - h * 0.2 },
+        { ...innerTop, a: innerTop.a - 0.01, b: innerTop.b - 0.01, y: -h / 2 + 0.01, n: 9 },
+        { ...innerTop, a: innerTop.a * 0.1, b: innerTop.b * 0.1, y: -h / 2, n: 2 },
+      ],
+      true,
+      false,
+    ),
+  );
+}

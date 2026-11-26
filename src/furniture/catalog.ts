@@ -132,58 +132,86 @@ const gloss = { finish: "glanz" as const };
 
 // ------------------------------------------------------------------ Wohnen
 
+const cushionOpt = { finish: "stoff" as const };
+
 function sofa(id: string, name: string, W: number, seats: number, color: string, accent: string): FurnitureDef {
   const D = 0.95;
-  return piece(id, name, "wohnen", W, D, 0.84, (b) => {
+  return piece(id, name, "wohnen", W, D, 0.86, (b) => {
     const arm = 0.2;
-    b.legs(0.08, 0.035, 0.1, C.black, true, metal);
-    b.box(0.02, W - 0.02, 0.04, D - 0.04, 0.1, 0.22, color, { ...fabric, round: 0.3 }); // plinth
-    b.box(0, arm, 0.02, D, 0.1, 0.62, color, { ...fabric, round: 0.6 }); // arms
-    b.box(W - arm, W, 0.02, D, 0.1, 0.62, color, { ...fabric, round: 0.6 });
-    b.box(arm - 0.02, W - arm + 0.02, 0, 0.24, 0.1, 0.62, color, { ...fabric, round: 0.4 }); // back frame
+    // wooden base and tapered legs
+    b.legs(0.09, 0.04, 0.08, C.walnut, true, wood);
+    b.box(0.04, W - 0.04, 0.05, D - 0.05, 0.08, 0.13, C.walnut, { ...wood, plan: false });
+    // upholstered frame: back and arms
+    b.part("cushion", 0.01, W - 0.01, 0, 0.22, 0.12, 0.6, color, cushionOpt);
+    b.part("cushion", 0, arm, 0.02, D, 0.12, 0.62, color, cushionOpt);
+    b.part("cushion", W - arm, W, 0.02, D, 0.12, 0.62, color, cushionOpt);
+    b.part("cushion", arm - 0.01, W - arm + 0.01, 0.18, D - 0.02, 0.12, 0.24, color, { ...cushionOpt, plan: false });
     const cw = (W - 2 * arm) / seats;
     for (let i = 0; i < seats; i++) {
-      const x0 = arm + i * cw + 0.008;
-      const x1 = arm + (i + 1) * cw - 0.008;
-      b.box(x0, x1, 0.22, D - 0.02, 0.22, 0.43, color, { ...fabric, round: 0.7 }); // seat cushion
-      b.box(x0, x1, 0.08, 0.3, 0.42, 0.84, color, { ...fabric, round: 0.9, tilt: 10, plan: false }); // back cushion
+      const x0 = arm + i * cw + 0.006;
+      const x1 = arm + (i + 1) * cw - 0.006;
+      b.part("cushion", x0, x1, 0.22, D - 0.01, 0.23, 0.45, color, cushionOpt); // seat
+      b.part("cushion", x0 + 0.01, x1 - 0.01, 0.07, 0.3, 0.42, 0.86, color, { ...cushionOpt, tilt: 12, plan: false }); // back
     }
-    // throw pillows
-    b.box(arm + 0.04, arm + 0.48, 0.24, 0.38, 0.42, 0.86, accent, {
+    // scatter cushions in the accent colour
+    b.part("pillow", arm + 0.03, arm + 0.48, 0.25, 0.4, 0.42, 0.86, accent, {
       ...fabric,
-      round: 1,
-      tilt: 14,
-      yaw: 8,
+      tilt: 18,
+      yaw: 10,
       plan: false,
       fixed: true,
     });
-    b.box(W - arm - 0.48, W - arm - 0.04, 0.24, 0.38, 0.42, 0.86, accent, {
+    b.part("pillow", W - arm - 0.48, W - arm - 0.03, 0.25, 0.4, 0.42, 0.86, accent, {
       ...fabric,
-      round: 1,
-      tilt: 14,
-      yaw: -8,
+      tilt: 18,
+      yaw: -10,
+      plan: false,
+      fixed: true,
+    });
+    // knitted throw over one arm
+    b.part("throw", W - arm - 0.06, W + 0.01, 0.32, 0.78, 0.36, 0.66, C.offwhite, {
+      ...fabric,
       plan: false,
       fixed: true,
     });
   });
 }
 
-const cornerSofa = piece("sofa-ecke", "Ecksofa", "wohnen", 2.9, 1.9, 0.84, (b) => {
+const cornerSofa = piece("sofa-ecke", "Ecksofa", "wohnen", 2.9, 1.9, 0.86, (b) => {
   const c = C.stone;
-  const f = { ...fabric, round: 0.5 };
-  b.legs(0.08, 0.035, 0.1, C.black, true, metal);
-  b.box(0, 2.9, 0, 0.25, 0.1, 0.64, c, f); // back
-  b.box(2.65, 2.9, 0, 1.9, 0.1, 0.64, c, f); // right back
-  b.box(0, 0.2, 0, 0.95, 0.1, 0.62, c, { ...fabric, round: 0.7 }); // left arm
-  b.box(0.2, 2.65, 0.25, 0.95, 0.1, 0.24, c, f);
-  b.box(1.85, 2.65, 0.95, 1.9, 0.1, 0.24, c, f);
+  b.legs(0.09, 0.04, 0.08, C.walnut, true, wood);
+  b.box(0.04, 2.86, 0.05, 0.9, 0.08, 0.13, C.walnut, { ...wood, plan: false });
+  b.box(1.85, 2.86, 0.9, 1.85, 0.08, 0.13, C.walnut, { ...wood, plan: false });
+  b.part("cushion", 0, 2.9, 0, 0.24, 0.12, 0.62, c, cushionOpt); // back
+  b.part("cushion", 2.66, 2.9, 0.2, 1.9, 0.12, 0.62, c, cushionOpt); // right back
+  b.part("cushion", 0, 0.2, 0.02, 0.95, 0.12, 0.62, c, cushionOpt); // left arm
+  b.part("cushion", 0.2, 2.66, 0.22, 0.95, 0.12, 0.24, c, { ...cushionOpt, plan: false });
+  b.part("cushion", 1.86, 2.66, 0.95, 1.9, 0.12, 0.24, c, { ...cushionOpt, plan: false });
   for (let i = 0; i < 3; i++)
-    b.box(0.21 + i * 0.66, 0.85 + i * 0.66, 0.25, 0.94, 0.24, 0.44, c, { ...fabric, round: 0.8 });
-  b.box(1.86, 2.64, 0.96, 1.88, 0.24, 0.44, c, { ...fabric, round: 0.8 });
+    b.part("cushion", 0.21 + i * 0.555, 0.76 + i * 0.555, 0.24, 0.94, 0.23, 0.45, c, cushionOpt);
+  b.part("cushion", 1.88, 2.64, 0.24, 0.94, 0.23, 0.45, c, cushionOpt);
+  b.part("cushion", 1.88, 2.64, 0.96, 1.88, 0.23, 0.45, c, cushionOpt);
   for (let i = 0; i < 4; i++)
-    b.box(0.22 + i * 0.6, 0.8 + i * 0.6, 0.06, 0.3, 0.43, 0.84, c, { ...fabric, round: 0.9, tilt: 10, plan: false });
-  b.box(2.6, 2.84, 1.0, 1.6, 0.43, 0.84, c, { ...fabric, round: 0.9, plan: false });
-  b.box(0.26, 0.7, 0.27, 0.4, 0.42, 0.86, C.terracotta, { ...fabric, round: 1, tilt: 14, yaw: 10, plan: false });
+    b.part("cushion", 0.22 + i * 0.6, 0.8 + i * 0.6, 0.06, 0.3, 0.42, 0.86, c, {
+      ...cushionOpt,
+      tilt: 12,
+      plan: false,
+    });
+  b.part("cushion", 2.6, 2.86, 1.0, 1.7, 0.42, 0.86, c, { ...cushionOpt, plan: false });
+  b.part("pillow", 0.24, 0.7, 0.26, 0.42, 0.42, 0.86, C.terracotta, {
+    ...fabric,
+    tilt: 18,
+    yaw: 10,
+    plan: false,
+    fixed: true,
+  });
+  b.part("pillow", 2.1, 2.55, 0.26, 0.42, 0.42, 0.86, C.sand, {
+    ...fabric,
+    tilt: 18,
+    yaw: -8,
+    plan: false,
+    fixed: true,
+  });
 });
 
 const tvBoard = piece("tv-board", "TV-Lowboard mit TV", "wohnen", 1.8, 0.42, 1.3, (b) => {
@@ -377,74 +405,183 @@ function diningSet(id: string, name: string, seats: number): FurnitureDef {
 
 // ------------------------------------------------------------------ Küche
 
-function kitchenRun(b: Builder, x0: number, x1: number, y0: number, y1: number, frontAtMaxY: boolean) {
-  const along = x1 - x0;
-  b.box(x0, x1, y0, y1, 0, 0.1, C.darkgrey, { plan: false });
-  b.box(x0, x1, y0, y1 - 0.02, 0.1, 0.88, C.white);
-  const n = Math.max(1, Math.round(along / 0.6));
-  const fw = along / n;
-  const fy0 = frontAtMaxY ? y1 - 0.02 : y0;
-  const fy1 = frontAtMaxY ? y1 : y0 + 0.02;
-  for (let i = 0; i < n; i++) {
-    const a = x0 + i * fw + 0.002;
-    const e = x0 + (i + 1) * fw - 0.002;
-    b.box(a, e, fy0, fy1, 0.1, 0.88, C.white, { finish: "glanz", plan: false });
-    const hy0 = frontAtMaxY ? fy1 : fy0 - 0.02;
-    b.box(a + 0.08, e - 0.08, hy0, hy0 + 0.02, 0.83, 0.845, C.darkgrey, { ...metal, plan: false });
+const lacquer = { finish: "lack" as const };
+const stoneTop = { finish: "stein" as const };
+const steel = { finish: "edelstahl" as const };
+const FRONT = "#ebe8e2";
+const WORKTOP = "#d9d5ce";
+
+/** Worktop slab with rectangular cut-outs (e.g. for an undermount sink). */
+function worktop(
+  b: Builder,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+  z0: number,
+  z1: number,
+  holes: { x0: number; x1: number; y0: number; y1: number }[] = [],
+) {
+  let x = x0;
+  for (const h of [...holes].sort((p, q) => p.x0 - q.x0)) {
+    if (h.x0 > x) b.box(x, h.x0, y0, y1, z0, z1, WORKTOP, stoneTop);
+    if (h.y0 > y0) b.box(h.x0, h.x1, y0, h.y0, z0, z1, WORKTOP, stoneTop);
+    if (h.y1 < y1) b.box(h.x0, h.x1, h.y1, y1, z0, z1, WORKTOP, stoneTop);
+    x = h.x1;
   }
-  b.box(x0 - 0.005, x1 + 0.005, y0, y1 + (frontAtMaxY ? 0.02 : 0), 0.88, 0.92, C.stone, { finish: "glanz" });
+  if (x < x1) b.box(x, x1, y0, y1, z0, z1, WORKTOP, stoneTop);
+}
+
+type Unit = "doors" | "drawers" | "oven" | "dishwasher";
+
+/** Base cabinets along x with fronts facing +y: plinth, carcass, lacquered fronts with shadow gaps, handles. */
+function baseRun(b: Builder, x0: number, x1: number, depth: number, units: Unit[]) {
+  b.box(x0, x1, 0, depth - 0.07, 0, 0.1, C.darkgrey, { plan: false });
+  b.box(x0, x1, 0, depth - 0.02, 0.1, 0.88, "#d2cec7", { plan: false });
+  const fw = (x1 - x0) / units.length;
+  const gap = 0.003;
+  const fy0 = depth - 0.02;
+  const fy1 = depth;
+  units.forEach((u, i) => {
+    const a = x0 + i * fw + gap;
+    const e = x0 + (i + 1) * fw - gap;
+    const handle = (z: number) =>
+      b.box(a + 0.06, e - 0.06, fy1, fy1 + 0.018, z - 0.006, z + 0.006, C.black, { ...metal, plan: false });
+    if (u === "drawers") {
+      const rows = [
+        [0.1, 0.38],
+        [0.38, 0.63],
+        [0.63, 0.88],
+      ];
+      for (const [z0, z1] of rows) {
+        b.box(a, e, fy0, fy1, z0 + gap, z1 - gap, FRONT, { ...lacquer, plan: false });
+        handle(z1 - 0.05);
+      }
+    } else if (u === "oven") {
+      b.box(a, e, fy0, fy1, 0.1 + gap, 0.2, FRONT, { ...lacquer, plan: false });
+      b.box(a, e, fy0, fy1, 0.2 + gap, 0.79, C.black, { finish: "glanz", plan: false });
+      b.box(a + 0.04, e - 0.04, fy1 - 0.002, fy1 + 0.001, 0.3, 0.66, "#3a3d40", { finish: "glas", plan: false });
+      b.box(a + 0.05, e - 0.05, fy1, fy1 + 0.03, 0.72, 0.735, C.chrome, { ...steel, plan: false });
+      b.box(a, e, fy0, fy1, 0.79 + gap, 0.88 - gap, C.black, { finish: "glanz", plan: false });
+    } else {
+      b.box(a, e, fy0, fy1, 0.1 + gap, 0.88 - gap, FRONT, { ...lacquer, plan: false });
+      handle(0.83);
+    }
+  });
+  b.box(x0, x1, 0, depth, 0.88, 0.92, WORKTOP, { ...stoneTop, plan: false });
+}
+
+function cooktop(b: Builder, x0: number, y0: number) {
+  b.box(x0, x0 + 0.58, y0, y0 + 0.51, 0.92, 0.926, C.black, { finish: "glanz" });
+  for (const [dx, dy, dia] of [
+    [0.15, 0.14, 0.18],
+    [0.43, 0.14, 0.2],
+    [0.15, 0.37, 0.21],
+    [0.43, 0.37, 0.16],
+  ]) {
+    b.cyl(x0 + dx, y0 + dy, dia, 0.926, 0.9262, "#55585c", { plan: true });
+    b.cyl(x0 + dx, y0 + dy, dia - 0.012, 0.9262, 0.9264, C.black, { finish: "glanz", plan: false });
+  }
+  b.box(x0 + 0.18, x0 + 0.4, y0 + 0.47, y0 + 0.49, 0.926, 0.9265, "#6b6f73", { plan: false });
+}
+
+/** Counter decoration that makes a top view read as a real kitchen. */
+function counterProps(b: Builder, x: number, y: number) {
+  b.box(x, x + 0.4, y, y + 0.27, 0.92, 0.94, C.oakLight, { ...wood, round: 0.2 }); // cutting board
+  b.part("basin", x + 0.55, x + 0.85, y + 0.02, y + 0.32, 0.92, 1.0, C.white, { finish: "keramik" }); // fruit bowl
+  for (const [fx, fy, col] of [
+    [0.66, 0.13, "#e88a2a"],
+    [0.75, 0.2, "#c8402e"],
+    [0.68, 0.23, "#e9a43a"],
+    [0.76, 0.11, "#9ab83a"],
+  ] as const)
+    b.sphere(x + fx, y + fy, 0.075, 0.95, 1.02, col, { finish: "glanz" });
 }
 
 const kitchen = piece("kuechenzeile", "Küchenzeile 300", "kueche", 3.0, 0.62, 2.3, (b) => {
-  kitchenRun(b, 0, 3.0, 0, 0.6, true);
-  // sink
-  b.box(1.85, 2.45, 0.12, 0.5, 0.921, 0.922, C.chrome, { ...metal });
-  b.box(1.9, 2.4, 0.16, 0.46, 0.92, 0.925, C.darkgrey, { ...metal, plan: false });
-  b.cyl(2.15, 0.07, 0.04, 0.92, 1.22, C.chrome, { ...metal, plan: false });
-  b.box(2.13, 2.17, 0.07, 0.26, 1.18, 1.22, C.chrome, { ...metal, plan: false });
-  // cooktop
-  b.box(0.4, 1.0, 0.08, 0.56, 0.92, 0.926, C.black, { finish: "glanz" });
-  for (const [x, y] of [
-    [0.55, 0.2],
-    [0.85, 0.2],
-    [0.55, 0.44],
-    [0.85, 0.44],
-  ])
-    b.cyl(x, y, 0.18, 0.926, 0.927, C.darkgrey, { plan: false });
-  // wall cabinets and hood
-  b.box(0, 3.0, 0, 0.35, 1.45, 2.15, C.white, { plan: false });
-  for (let i = 0; i < 5; i++)
-    b.box(i * 0.6 + 0.002, (i + 1) * 0.6 - 0.002, 0.35, 0.37, 1.45, 2.15, C.white, { finish: "glanz", plan: false });
+  const D = 0.62;
+  baseRun(b, 0, 3.0, D, ["drawers", "oven", "drawers", "dishwasher", "doors"]);
+  // worktop with the sink cut-out, sink, mixer
+  b.parts.pop(); // replace the plain worktop of baseRun with one that has a hole
+  worktop(b, 0, 3.0, 0, D, 0.88, 0.92, [{ x0: 1.86, x1: 2.34, y0: 0.12, y1: 0.5 }]);
+  b.part("sink", 1.84, 2.36, 0.1, 0.52, 0.71, 0.922, C.chrome, steel);
+  b.part("faucet", 2.08, 2.12, 0.03, 0.32, 0.92, 1.3, C.chrome, { finish: "chrom" });
+  cooktop(b, 0.61, 0.06);
+  counterProps(b, 0.05, 0.25);
+  b.cyl(2.62, 0.2, 0.17, 0.92, 1.12, C.chrome, steel); // kettle
+  b.cyl(2.62, 0.2, 0.05, 1.12, 1.15, C.black, { plan: false });
+  b.cyl(2.85, 0.12, 0.07, 0.92, 1.2, "#6d7a3a", { finish: "glas" }); // oil bottle
+  // tiled splashback
+  b.box(0, 3.0, 0, 0.012, 0.92, 1.45, "#f1efea", { finish: "glanz", plan: false });
+  for (let z = 1.0; z < 1.45; z += 0.075) b.box(0, 3.0, 0.012, 0.013, z, z + 0.002, "#d7d3cc", { plan: false });
+  // wall cabinets with a chimney hood above the cooktop
+  for (let i = 0; i < 5; i++) {
+    if (i === 1) continue;
+    b.box(i * 0.6, (i + 1) * 0.6, 0, 0.33, 1.48, 2.2, "#d2cec7", { plan: false });
+    b.box(i * 0.6 + 0.003, (i + 1) * 0.6 - 0.003, 0.33, 0.35, 1.483, 2.197, FRONT, { ...lacquer, plan: false });
+  }
+  b.box(0.61, 1.19, 0, 0.5, 1.6, 1.66, C.chrome, { ...steel, plan: false });
+  b.box(0.8, 1.0, 0, 0.26, 1.66, 2.3, C.chrome, { ...steel, plan: false });
 });
 
 const kitchenL = piece("kuechenzeile-l", "Küche L-Form", "kueche", 2.8, 2.2, 0.95, (b) => {
-  kitchenRun(b, 0, 2.8, 0, 0.6, true);
-  // side leg: build as a second run rotated by drawing along y
-  b.box(2.2, 2.8, 0.6, 2.2, 0, 0.1, C.darkgrey, { plan: false });
-  b.box(2.2, 2.78, 0.6, 2.2, 0.1, 0.88, C.white);
-  for (let i = 0; i < 3; i++) {
-    const y0 = 0.6 + i * 0.533 + 0.002;
-    b.box(2.18, 2.2, y0, y0 + 0.529, 0.1, 0.88, C.white, { finish: "glanz", plan: false });
+  const D = 0.62;
+  baseRun(b, 0, 2.8, D, ["drawers", "oven", "drawers", "doors"]);
+  b.parts.pop();
+  worktop(b, 0, 2.8, 0, D, 0.88, 0.92);
+  cooktop(b, 0.71, 0.06);
+  counterProps(b, 1.45, 0.25);
+  // side run along y, fronts facing -x (into the room)
+  const X0 = 2.8 - D;
+  b.box(X0 + 0.07, 2.8, D, 2.2, 0, 0.1, C.darkgrey, { plan: false });
+  b.box(X0 + 0.02, 2.8, D, 2.2, 0.1, 0.88, "#d2cec7", { plan: false });
+  const n = 3;
+  const fw = (2.2 - D) / n;
+  for (let i = 0; i < n; i++) {
+    const y0 = D + i * fw + 0.003;
+    const y1 = D + (i + 1) * fw - 0.003;
+    b.box(X0, X0 + 0.02, y0, y1, 0.103, 0.877, FRONT, { ...lacquer, plan: false });
+    b.box(X0 - 0.018, X0, y0 + 0.06, y1 - 0.06, 0.824, 0.836, C.black, { ...metal, plan: false });
   }
-  b.box(2.18, 2.805, 0.6, 2.2, 0.88, 0.92, C.stone, { finish: "glanz" });
-  b.box(0.7, 1.3, 0.08, 0.56, 0.92, 0.926, C.black, { finish: "glanz" });
-  b.box(2.3, 2.7, 1.2, 1.8, 0.921, 0.922, C.chrome, metal);
-  b.cyl(2.75, 1.5, 0.04, 0.92, 1.2, C.chrome, { ...metal, plan: false });
+  worktop(b, X0, 2.8, D, 2.2, 0.88, 0.92, [{ x0: X0 + 0.1, x1: X0 + 0.5, y0: 1.2, y1: 1.7 }]);
+  b.part("sink", X0 + 0.08, X0 + 0.52, 1.18, 1.72, 0.71, 0.922, C.chrome, steel);
+  b.part("faucet", 2.62, 2.78, 1.43, 1.47, 0.92, 1.28, C.chrome, { finish: "chrom", yaw: 90 });
 });
 
 const island = piece("kochinsel", "Kochinsel", "kueche", 2.2, 1.0, 0.95, (b) => {
-  b.box(0, 2.2, 0, 0.7, 0, 0.9, C.walnut, wood);
-  b.box(-0.01, 2.21, -0.02, 1.0, 0.9, 0.95, C.white, { finish: "glanz" });
-  b.box(0.75, 1.45, 0.12, 0.58, 0.95, 0.956, C.black, { finish: "glanz" });
-  b.box(0.1, 0.12, 0.7, 0.98, 0, 0.9, C.white, { finish: "glanz", plan: false });
-  b.box(2.08, 2.1, 0.7, 0.98, 0, 0.9, C.white, { finish: "glanz", plan: false });
+  // cabinets on the working side (back, -y), seating overhang on the front
+  b.box(0.06, 2.14, 0.1, 0.7, 0, 0.1, C.darkgrey, { plan: false });
+  b.box(0.06, 2.14, 0.02, 0.7, 0.1, 0.9, C.walnut, { ...wood, plan: false });
+  for (let i = 0; i < 3; i++) {
+    const a = 0.06 + i * 0.693 + 0.003;
+    const e = 0.06 + (i + 1) * 0.693 - 0.003;
+    b.box(a, e, 0, 0.02, 0.103, 0.897, C.walnut, { ...wood, plan: false });
+    b.box(a + 0.08, e - 0.08, -0.018, 0, 0.84, 0.852, C.black, { ...metal, plan: false });
+  }
+  // stone top with waterfall sides
+  b.box(0, 2.2, 0, 1.0, 0.9, 0.95, WORKTOP, stoneTop);
+  b.box(0, 0.05, 0, 1.0, 0, 0.9, WORKTOP, { ...stoneTop, plan: false });
+  b.box(2.15, 2.2, 0, 1.0, 0, 0.9, WORKTOP, { ...stoneTop, plan: false });
+  b.box(0.81, 1.39, 0.08, 0.59, 0.95, 0.956, C.black, { finish: "glanz" });
+  for (const [dx, dy] of [
+    [0.95, 0.22],
+    [1.25, 0.22],
+    [0.95, 0.45],
+    [1.25, 0.45],
+  ])
+    b.cyl(dx, dy, 0.19, 0.956, 0.9562, "#55585c");
+  b.part("basin", 1.7, 2.0, 0.6, 0.9, 0.95, 1.03, C.white, { finish: "keramik" });
+  b.sphere(1.8, 0.72, 0.08, 0.98, 1.05, "#c8402e", { finish: "glanz" });
+  b.sphere(1.88, 0.78, 0.08, 0.98, 1.05, "#e88a2a", { finish: "glanz" });
+  b.box(0.15, 0.55, 0.62, 0.9, 0.95, 0.97, C.oakLight, { ...wood, round: 0.2 });
 });
 
-const fridge = piece("kuehlschrank", "Kühlschrank hoch", "kueche", 0.6, 0.65, 2.0, (b) => {
-  b.box(0, 0.6, 0, 0.62, 0, 2.0, C.chrome, { finish: "metall" });
-  b.box(0.005, 0.595, 0.62, 0.64, 0.02, 1.2, C.chrome, { ...metal, plan: false });
-  b.box(0.005, 0.595, 0.62, 0.64, 1.21, 1.99, C.chrome, { ...metal, plan: false });
-  b.box(0.52, 0.54, 0.64, 0.66, 0.8, 1.15, C.darkgrey, { ...metal, plan: false });
+const fridge = piece("kuehlschrank", "Kühlschrank hoch", "kueche", 0.6, 0.66, 2.0, (b) => {
+  b.box(0, 0.6, 0, 0.62, 0, 2.0, C.chrome, { finish: "edelstahl" });
+  b.box(0.004, 0.596, 0.62, 0.64, 0.02, 1.2, C.chrome, { finish: "edelstahl", plan: false });
+  b.box(0.004, 0.596, 0.62, 0.64, 1.21, 1.99, C.chrome, { finish: "edelstahl", plan: false });
+  b.box(0.52, 0.535, 0.64, 0.66, 0.85, 1.15, C.darkgrey, { ...metal, plan: false });
+  b.box(0.52, 0.535, 0.64, 0.66, 1.25, 1.55, C.darkgrey, { ...metal, plan: false });
 });
 
 const barstool = piece("barhocker", "Barhocker", "kueche", 0.42, 0.42, 0.8, (b) => {

@@ -152,7 +152,9 @@ export type PartShape =
   | "basin"
   | "tray"
   | "toilet"
-  | "faucet";
+  | "faucet"
+  | "cushion"
+  | "sink";
 
 /** A primitive in a furniture model. Coordinates are relative to the item's footprint (0..1). */
 export interface FurniturePart {
@@ -168,7 +170,19 @@ export interface FurniturePart {
   h: number;
   color: string;
   /** Slight roughness/metal hints for 3D. */
-  finish?: "matt" | "glanz" | "metall" | "stoff" | "glas" | "holz" | "licht" | "keramik" | "chrom";
+  finish?:
+    | "matt"
+    | "glanz"
+    | "metall"
+    | "stoff"
+    | "glas"
+    | "holz"
+    | "licht"
+    | "keramik"
+    | "chrom"
+    | "stein"
+    | "lack"
+    | "edelstahl";
   /** Draw in the 2D symbol (default true). */
   plan?: boolean;
   /** Tilt around the item's x axis in degrees (e.g. leaning back cushions). */
