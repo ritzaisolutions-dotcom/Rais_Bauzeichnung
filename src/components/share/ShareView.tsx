@@ -138,10 +138,6 @@ export function ShareView({ token }: { token: string }) {
             </tfoot>
           </table>
           <p className="mt-2 text-[11px] text-muted">Balkon und Terrasse zu 25 % angerechnet.</p>
-          <p className="mt-6 text-[11px] text-muted">
-            <a href="/impressum" className="underline">Impressum</a> ·{" "}
-            <a href="/datenschutz" className="underline">Datenschutz</a>
-          </p>
         </aside>
       </div>
     </div>

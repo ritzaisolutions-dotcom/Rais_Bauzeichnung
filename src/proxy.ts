@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authConfig, SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 // Paths reachable without the password: login, shared read-only plans and legal pages.
-const PUBLIC = [/^\/login$/, /^\/api\/login$/, /^\/teilen\//, /^\/api\/share\//, /^\/impressum$/, /^\/datenschutz$/];
+const PUBLIC = [/^\/login$/, /^\/api\/login$/, /^\/teilen\//, /^\/api\/share\//];
 
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

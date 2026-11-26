@@ -1,7 +1,6 @@
 "use client";
 
 import { LayoutGrid, Loader2, Lock } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui";
 
@@ -76,14 +75,6 @@ export function LoginForm({ next, locked }: { next: string; locked: boolean }) {
           </>
         )}
       </form>
-      <div className="mt-6 flex gap-4 text-xs text-muted">
-        <Link href="/impressum" className="hover:text-ink">
-          Impressum
-        </Link>
-        <Link href="/datenschutz" className="hover:text-ink">
-          Datenschutz
-        </Link>
-      </div>
     </div>
   );
 }

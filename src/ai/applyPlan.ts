@@ -6,12 +6,19 @@ import type { RecognisedPlan } from "./planSchema";
 
 /**
  * Converts a plan recognised in image pixels into walls, openings and rooms.
- * k converts AI-image pixels to underlay pixels.
+ * k converts AI-image pixels to underlay pixels; offset is the top-left corner of
+ * the crop that was sent, in underlay pixels.
  */
-export function applyRecognisedPlan(floor: Floor, plan: RecognisedPlan, u: Underlay, k: number) {
+export function applyRecognisedPlan(
+  floor: Floor,
+  plan: RecognisedPlan,
+  u: Underlay,
+  k: number,
+  offset: Vec2 = { x: 0, y: 0 },
+) {
   const toWorld = (x: number, y: number): Vec2 => ({
-    x: u.x + (x * k) / u.pxPerMeter,
-    y: u.y + (y * k) / u.pxPerMeter,
+    x: u.x + (offset.x + x * k) / u.pxPerMeter,
+    y: u.y + (offset.y + y * k) / u.pxPerMeter,
   });
   const toM = (px: number) => (px * k) / u.pxPerMeter;
 

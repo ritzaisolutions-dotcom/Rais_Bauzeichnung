@@ -152,3 +152,54 @@ test("shared view shows plan, 3D and areas read-only", async ({ browser }) => {
   await page.screenshot({ path: "test-results/share-view.png" });
   await ctx.close();
 });
+
+test("AI import shows a preview for a crop and only applies it on accept", async ({ page }) => {
+  const sharp = (await import("sharp")).default;
+  // synthetic drawing: one 6 × 4 m room at 100 px/m, at (400, 300) on a 1600 × 1200 sheet
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="#fff"/><rect x="400" y="300" width="600" height="400" fill="none" stroke="#000" stroke-width="24"/></svg>`;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  let sent: { width: number; height: number; textItems: unknown[] } | null = null;
+  await page.route("**/api/ai/import", async (r) => {
+    sent = r.request().postDataJSON();
+    // the crop starts at (300, 200) and is small enough to be sent unscaled: room at (100,100)-(700,500)
+    await r.fulfill({
+      json: {
+        plan: {
+          walls: [
+            { x1: 100, y1: 100, x2: 700, y2: 100, thickness_px: 24, type: "aussen" },
+            { x1: 700, y1: 100, x2: 700, y2: 500, thickness_px: 24, type: "aussen" },
+            { x1: 700, y1: 500, x2: 100, y2: 500, thickness_px: 24, type: "aussen" },
+            { x1: 100, y1: 500, x2: 100, y2: 100, thickness_px: 24, type: "aussen" },
+          ],
+          openings: [{ x: 400, y: 500, kind: "tuer", width_px: 90 }],
+          rooms: [{ name: "Wohnen", x: 400, y: 300, area_m2: 21.5 }],
+          notes: "Testplan",
+        },
+      },
+    });
+  });
+  await newProject(page, "Leerer Grundriss");
+  await page.getByTestId("import-button").click();
+  await page.getByTestId("import-file").setInputFiles({ name: "plan.png", mimeType: "image/png", buffer: png });
+  const preview = page.getByTestId("plan-preview");
+  await expect(preview).toBeVisible();
+  // drag a crop from image (300, 200) to (1100, 800)
+  const box = (await preview.boundingBox())!;
+  const at = (x: number, y: number) => [box.x + (x / 1600) * box.width, box.y + (y / 1200) * box.height] as const;
+  await page.mouse.move(...at(300, 200));
+  await page.mouse.down();
+  await page.mouse.move(...at(700, 500), { steps: 4 });
+  await page.mouse.move(...at(1100, 800), { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByText(/Ausschnitt gewählt/)).toBeVisible();
+  await page.getByText("Ausschnitt mit KI erkennen").click();
+  await expect(page.getByTestId("ai-result")).toContainText("4 Wände, 1 Öffnungen, 1 Räume");
+  expect(sent!.width).toBeGreaterThan(780);
+  expect(sent!.width).toBeLessThan(820);
+  // nothing has been applied yet
+  await page.screenshot({ path: "test-results/ai-preview.png" });
+  await page.getByTestId("ai-accept").click();
+  await expect(page.getByText(/KI-Ergebnis übernommen/)).toBeVisible();
+  // room area label from the derived room (5.76 × 3.76 m)
+  await expect(page.getByTestId("plan-canvas")).toContainText("21,66 m²");
+});

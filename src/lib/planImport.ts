@@ -145,17 +145,25 @@ export function extractRoomLabels(items: { str: string; px: number; py: number }
   return out;
 }
 
-/** Downscaled JPEG of the underlay for the vision model. */
-export async function underlayForAi(dataUrl: string, maxPx = 1568) {
+/**
+ * Downscaled JPEG of the underlay (or of a crop of it, in underlay pixels) for the
+ * vision model. A tight crop gives the model more pixels per wall.
+ */
+export async function underlayForAi(
+  dataUrl: string,
+  crop?: { x: number; y: number; w: number; h: number },
+  maxPx = 1568,
+) {
   const img = await loadImg(dataUrl);
-  const k = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
+  const r = crop ?? { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+  const k = Math.min(1, maxPx / Math.max(r.w, r.h));
   const c = document.createElement("canvas");
-  c.width = Math.round(img.naturalWidth * k);
-  c.height = Math.round(img.naturalHeight * k);
+  c.width = Math.round(r.w * k);
+  c.height = Math.round(r.h * k);
   const g = c.getContext("2d")!;
   g.fillStyle = "#fff";
   g.fillRect(0, 0, c.width, c.height);
-  g.drawImage(img, 0, 0, c.width, c.height);
+  g.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, c.width, c.height);
   const url = c.toDataURL("image/jpeg", 0.88);
   return { base64: url.split(",")[1], width: c.width, height: c.height, factor: k };
 }
