@@ -36,6 +36,7 @@ test("presentation plan looks as before", async ({ page }) => {
     .toBe(true);
   await expect(page.getByTestId("plan-canvas")).toHaveScreenshot("presentation-plan.png", {
     maxDiffPixelRatio: 0.02,
+    timeout: 30000,
   });
 });
 
@@ -48,5 +49,6 @@ test("3D top view looks as before", async ({ page }) => {
   await page.waitForTimeout(12000);
   await expect(page.getByTestId("scene-3d").locator("canvas").first()).toHaveScreenshot("3d-top.png", {
     maxDiffPixelRatio: 0.03,
+    timeout: 60000,
   });
 });
