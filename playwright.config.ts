@@ -12,7 +12,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     // no key: the AI routes must answer with a clear error instead of crashing
-    env: { ANTHROPIC_API_KEY: "", APP_PASSWORD: "test-passwort", AI_DAILY_LIMIT: "50" },
+    env: { ANTHROPIC_API_KEY: "", APP_PASSWORD: "test-passwort", AI_DAILY_LIMIT: "50", LOGIN_RATE_LIMIT: "100" },
   },
   projects: [
     {

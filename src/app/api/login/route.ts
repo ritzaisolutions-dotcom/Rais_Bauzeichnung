@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Der Zugang ist noch nicht eingerichtet (APP_PASSWORD fehlt)." }, { status: 503 });
   }
   // slow down guessing: 8 attempts per minute per client
-  if (!allow(`login:${clientIp(req)}`, 8, 60 * 1000)) {
+  if (!allow(`login:${clientIp(req)}`, Number(process.env.LOGIN_RATE_LIMIT) || 8, 60 * 1000)) {
     return Response.json({ error: "Zu viele Versuche. Bitte eine Minute warten." }, { status: 429 });
   }
   const body = (await req.json().catch(() => ({}))) as { password?: unknown };
