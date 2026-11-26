@@ -276,12 +276,49 @@ const fireplace = piece("kamin", "Kaminofen", "wohnen", 0.6, 0.5, 1.15, (b) => {
   b.cyl(0.3, 0.25, 0.14, 1.1, 1.15, C.black, metal);
 });
 
-const floorLamp = piece("stehlampe", "Stehlampe", "deko", 0.45, 0.45, 1.65, (b) => {
-  b.cyl(0.225, 0.225, 0.3, 0, 0.025, C.black, metal);
-  b.cyl(0.225, 0.225, 0.025, 0.025, 1.3, C.brass, { ...metal, plan: false });
-  b.cyl(0.225, 0.225, 0.42, 1.25, 1.62, C.linen, { ...fabric });
-  b.cyl(0.225, 0.225, 0.3, 1.27, 1.29, "#fff4dc", { finish: "licht", plan: false });
-});
+const floorLamp = piece(
+  "stehlampe",
+  "Stehlampe",
+  "deko",
+  0.45,
+  0.45,
+  1.65,
+  (b) => {
+    b.cyl(0.225, 0.225, 0.3, 0, 0.025, C.black, metal);
+    b.cyl(0.225, 0.225, 0.025, 0.025, 1.3, C.brass, { ...metal, plan: false });
+    b.cyl(0.225, 0.225, 0.42, 1.25, 1.62, C.linen, { ...fabric });
+    b.cyl(0.225, 0.225, 0.3, 1.27, 1.29, "#fff4dc", { finish: "licht", plan: false });
+  },
+  { light: { z: 0.85, intensity: 2.5, color: "#ffd9a0", distance: 5 } },
+);
+
+// ceiling lights: drawn in the plan despite the plan cut (architectural convention)
+const ceilingLight = piece(
+  "deckenleuchte",
+  "Deckenleuchte",
+  "deko",
+  0.45,
+  0.45,
+  0.08,
+  (b) => {
+    b.cyl(0.225, 0.225, 0.12, 0.06, 0.08, C.white, { finish: "matt" });
+    b.part("sphere", 0.02, 0.43, 0.02, 0.43, 0, 0.07, "#fff6e6", { finish: "licht" });
+  },
+  { elevation: 2.5, light: { z: 0, intensity: 6, color: "#ffe4bd", distance: 7 } },
+);
+const spot = piece(
+  "einbauspot",
+  "Einbauspot",
+  "deko",
+  0.1,
+  0.1,
+  0.02,
+  (b) => {
+    b.cyl(0.05, 0.05, 0.1, 0.01, 0.02, C.chrome, metal);
+    b.cyl(0.05, 0.05, 0.06, 0, 0.012, "#fffaf0", { finish: "licht" });
+  },
+  { elevation: 2.57, light: { z: 0, intensity: 2.2, color: "#fff0d8", distance: 4 } },
+);
 
 // ------------------------------------------------------------------ Schlafen
 
@@ -771,6 +808,7 @@ const MODEL_PIECES: FurnitureDef[] = [
   modelPiece("gartentisch", "outdoor_table_chair_set_01", "Bistro-Set", "aussen", 90, outlineBox(C.oak)),
   modelPiece("pendelleuchte", "modern_ceiling_lamp_01", "Pendelleuchte", "deko", 0, outlineRound(C.white), {
     elevation: 1.5,
+    light: { z: 0.1, intensity: 4, color: "#ffdcae", distance: 6 },
   }),
 ];
 
@@ -859,6 +897,8 @@ export const CATALOG: FurnitureDef[] = [
   rug("teppich-rund", "Teppich rund", 2.0, 2.0, C.sand, true),
   fireplace,
   floorLamp,
+  ceilingLight,
+  spot,
   // Schlafen
   bed("bett-90", "Einzelbett 90×200", 0.9, C.offwhite, C.sage),
   bed("bett-140", "Bett 140×200", 1.4, C.offwhite, C.terracotta),

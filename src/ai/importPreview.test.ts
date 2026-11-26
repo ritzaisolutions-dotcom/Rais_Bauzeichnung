@@ -4,7 +4,16 @@ import type { Underlay } from "@/model/types";
 import type { RecognisedPlan } from "./planSchema";
 import { buildPreview, commitRecognised, cropFromDrag, textForAi } from "./importPreview";
 
-const u: Underlay = { dataUrl: "", pxPerMeter: 100, x: 0, y: 0, opacity: 1, widthPx: 2000, heightPx: 1500, visible: true };
+const u: Underlay = {
+  dataUrl: "",
+  pxPerMeter: 100,
+  x: 0,
+  y: 0,
+  opacity: 1,
+  widthPx: 2000,
+  heightPx: 1500,
+  visible: true,
+};
 
 // a 6 × 4 m room drawn in a crop that starts at (500, 300) and was downscaled by 0.5
 const plan: RecognisedPlan = {

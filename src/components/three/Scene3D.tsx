@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { EffectComposer, N8AO, SMAA } from "@react-three/postprocessing";
 import type { EffectComposer as EffectComposerImpl } from "postprocessing";
 import clsx from "clsx";
-import { Box, Eye, Footprints, Map as MapIcon, Scissors, Sparkle } from "lucide-react";
+import { Box, Eye, Footprints, Layers, Map as MapIcon, Scissors, Sparkle, Sun as SunIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -13,11 +13,17 @@ import { findDef } from "@/furniture/catalog";
 import { add, computeRoomGeometry, floorBounds, lineInPolygon, mul } from "@/model/geometry";
 import type { Floor, FurnitureDef, RoomGeometry } from "@/model/types";
 import { pointAlong, solidIntervals, wallFrames, type WallFrame } from "@/model/walls";
+import { finishedWallSides, sunAt } from "@/model/finishes";
 import { slopeSides } from "@/model/woflv";
 import { registry } from "@/lib/registry";
 import { useActiveFloor, useEditor, useFurnitureDefs } from "@/store/editor";
 import { FurnitureModel } from "./FurnitureModel";
 import { floorTexture } from "./materials";
+
+/** Which floors to show: the active one only, with those below, or all. */
+type FloorsMode = "one" | "below" | "all";
+/** Concrete slab between storeys. */
+const SLAB = 0.25;
 
 type CamMode = "orbit" | "top" | "walk";
 
@@ -332,6 +338,205 @@ function Walls({ floor, cut, rooms }: { floor: Floor; cut: number; rooms: RoomGe
   );
 }
 
+const paintCache = new Map<string, THREE.MeshStandardMaterial>();
+function paint(color: string) {
+  let m = paintCache.get(color);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.92 });
+    paintCache.set(color, m);
+  }
+  return m;
+}
+
+const tileCache = new Map<string, THREE.MeshStandardMaterial>();
+/** Glossy tiles (30 × 60 cm) with grout lines, as a repeating texture in world units. */
+function tiles(color: string) {
+  let m = tileCache.get(color);
+  if (!m) {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#d9d6d0";
+    g.fillRect(0, 0, 256, 128);
+    g.fillStyle = color;
+    g.fillRect(2, 2, 252, 124);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.25, metalness: 0 });
+    tileCache.set(color, m);
+  }
+  return m;
+}
+
+/** A thin vertical sheet on one face of a wall, from s to e along it and y0 to y1 high. */
+function FaceSheet({
+  f,
+  side,
+  s,
+  e,
+  y0,
+  y1,
+  cut,
+  material,
+  tiled,
+}: {
+  f: WallFrame;
+  side: 1 | -1;
+  s: number;
+  e: number;
+  y0: number;
+  y1: number;
+  cut: number;
+  material: THREE.MeshStandardMaterial;
+  tiled?: boolean;
+}) {
+  const top = Math.min(y1, cut);
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(Math.max(e - s, 0.001), Math.max(top - y0, 0.001));
+    if (tiled) {
+      // texture repeats every 60 × 30 cm
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * (e - s)) / 0.6, (uv.getY(i) * (top - y0)) / 0.3);
+    }
+    return g;
+  }, [s, e, y0, top, tiled]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  if (top <= y0 + 1e-3 || e - s < 1e-3) return null;
+  const mid = (s + e) / 2;
+  const off = (f.wall.thickness / 2 + 0.003) * side;
+  const x = f.a.x + f.dir.x * mid + f.normal.x * off;
+  const z = f.a.y + f.dir.y * mid + f.normal.y * off;
+  // plane faces +z locally; turn it to face along the side normal
+  const nx = f.normal.x * side;
+  const nz = f.normal.y * side;
+  return (
+    <mesh
+      geometry={geometry}
+      material={material}
+      position={[x, (y0 + top) / 2, z]}
+      rotation={[0, Math.atan2(nx, nz), 0]}
+      receiveShadow
+    />
+  );
+}
+
+/** Wall colour and tiles of rooms, on the room side of each wall (openings left free). */
+function WallFinishes({ floor, rooms, cut }: { floor: Floor; rooms: RoomGeometry[]; cut: number }) {
+  const sides = useMemo(() => finishedWallSides(floor, rooms), [floor, rooms]);
+  return (
+    <group>
+      {sides.map(({ frame: f, side, room }) => {
+        const H = f.wall.slope ? Math.min(f.wall.height, f.wall.slope.knee) : f.wall.height;
+        const tileH = Math.min(room.meta.tileHeight ?? 0, H);
+        const color = room.meta.wallColor;
+        // pieces: solid intervals full height, openings below the sill and above the lintel
+        const pieces: { s: number; e: number; y0: number; y1: number }[] = solidIntervals(f).map(([s, e]) => ({
+          s,
+          e,
+          y0: 0,
+          y1: H,
+        }));
+        for (const o of f.openings) {
+          const s = o.offset - o.width / 2;
+          const e = o.offset + o.width / 2;
+          if (o.sill > 0) pieces.push({ s, e, y0: 0, y1: o.sill });
+          const top = Math.min(H, o.sill + o.height);
+          if (top < H) pieces.push({ s, e, y0: top, y1: H });
+        }
+        return pieces.flatMap((p, i) => {
+          const out: React.ReactNode[] = [];
+          if (tileH > 0 && p.y0 < tileH) {
+            out.push(
+              <FaceSheet
+                key={`${f.wall.id}${side}t${i}`}
+                f={f}
+                side={side}
+                s={p.s}
+                e={p.e}
+                y0={p.y0}
+                y1={Math.min(p.y1, tileH)}
+                cut={cut}
+                material={tiles(room.meta.tileColor ?? "#f2f1ee")}
+                tiled
+              />,
+            );
+          }
+          const y0 = tileH > 0 ? Math.max(p.y0, tileH) : p.y0;
+          if (color && p.y1 > y0) {
+            out.push(
+              <FaceSheet
+                key={`${f.wall.id}${side}p${i}`}
+                f={f}
+                side={side}
+                s={p.s}
+                e={p.e}
+                y0={y0}
+                y1={p.y1}
+                cut={cut}
+                material={paint(color)}
+              />,
+            );
+          }
+          return out;
+        });
+      })}
+    </group>
+  );
+}
+
+/** Point lights for lamps; brighter when it gets dark. */
+function ItemLights({ floor, defs, level }: { floor: Floor; defs: FurnitureDef[]; level: number }) {
+  if (level <= 0.01) return null;
+  const lamps = floor.items
+    .map((it) => ({ it, def: findDef(it.defId, defs) }))
+    .filter((x) => x.def?.light)
+    .slice(0, 12);
+  return (
+    <group>
+      {lamps.map(({ it, def }) => (
+        <pointLight
+          key={it.id}
+          position={[it.x, (it.elevation ?? 0) + def!.light!.z * it.h - 0.03, it.y]}
+          color={def!.light!.color ?? "#ffe6c4"}
+          intensity={def!.light!.intensity * level}
+          distance={def!.light!.distance ?? 6}
+          decay={1.6}
+        />
+      ))}
+    </group>
+  );
+}
+
+/** A storey other than the active one: walls, floors and furniture, not editable. */
+function OtherFloor({ floor, y, defs }: { floor: Floor; y: number; defs: FurnitureDef[] }) {
+  const rooms = useMemo(() => computeRoomGeometry(floor), [floor]);
+  const lookup = useMemo(() => (id: string) => findDef(id, defs), [defs]);
+  return (
+    <group position={[0, y, 0]}>
+      {rooms.map((r) => (
+        <RoomFloor key={r.meta.id} room={r} />
+      ))}
+      <Walls floor={floor} cut={99} rooms={rooms} />
+      <WallFinishes floor={floor} rooms={rooms} cut={99} />
+      {floor.items.map((it) => {
+        const def = findDef(it.defId, defs);
+        if (!def) return null;
+        return (
+          <group
+            key={it.id}
+            position={[it.x, it.elevation ?? 0, it.y]}
+            rotation={[0, (-it.rotation * Math.PI) / 180, 0]}
+          >
+            <FurnitureModel def={def} item={it} lookup={lookup} />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 function RoomFloor({ room }: { room: RoomGeometry }) {
   const geometry = useMemo(() => {
     const shape = new THREE.Shape(room.outline.map((p) => new THREE.Vector2(p.x, -p.y)));
@@ -483,14 +688,13 @@ function WalkControls({ center }: { center: THREE.Vector3 }) {
 }
 
 /** Soft indoor reflections without downloading an HDRI. */
-function RoomLighting() {
+function RoomLighting({ intensity }: { intensity: number }) {
   const get = useThree((s) => s.get);
   useEffect(() => {
     const { gl, scene, invalidate } = get();
     const pmrem = new THREE.PMREMGenerator(gl);
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = env;
-    scene.environmentIntensity = 0.35;
     invalidate();
     pmrem.dispose();
     return () => {
@@ -498,11 +702,27 @@ function RoomLighting() {
       env.dispose();
     };
   }, [get]);
+  useEffect(() => {
+    const { scene, invalidate } = get();
+    scene.environmentIntensity = intensity;
+    invalidate();
+  }, [get, intensity]);
   return null;
 }
 
-function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
+function SceneContent({
+  mode,
+  cut,
+  hour,
+  floorsMode,
+}: {
+  mode: CamMode;
+  cut: number;
+  hour: number;
+  floorsMode: FloorsMode;
+}) {
   const floor = useActiveFloor();
+  const project = useEditor((s) => s.project);
   const defs = useFurnitureDefs();
   const selection = useEditor((s) => s.selection);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -518,6 +738,28 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
     [floorKey],
   );
   const span = bounds ? Math.max(bounds.w, bounds.h, 4) : 10;
+  // the top view keeps a fixed noon light, like a presentation plan
+  const sun = sunAt(mode === "top" ? 13 : hour);
+  const lampLevel = mode === "top" ? 0 : Math.max(0, 1 - sun.daylight * 2.5);
+  // storeys around the active one, stacked by their heights (active floor stays at y = 0)
+  const others = useMemo(() => {
+    if (!project || !floor || floorsMode === "one") return [];
+    const idx = project.floors.findIndex((f) => f.id === floor.id);
+    const out: { f: Floor; y: number }[] = [];
+    let y = 0;
+    for (let i = idx - 1; i >= 0; i--) {
+      y -= project.floors[i].height + SLAB;
+      out.push({ f: project.floors[i], y });
+    }
+    if (floorsMode === "all") {
+      y = 0;
+      for (let i = idx + 1; i < project.floors.length; i++) {
+        y += project.floors[i - 1].height + SLAB;
+        out.push({ f: project.floors[i], y });
+      }
+    }
+    return out;
+  }, [project, floor, floorsMode]);
 
   useEffect(() => {
     registry.scene = groupRef.current;
@@ -567,17 +809,19 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
           makeDefault
         />
       )}
-      <RoomLighting />
-      <hemisphereLight args={["#fffaf0", "#b9b2a6", 0.45]} />
+      <RoomLighting intensity={0.08 + 0.27 * sun.daylight} />
+      <hemisphereLight args={["#fffaf0", "#b9b2a6", 0.08 + 0.37 * sun.daylight]} />
       <ambientLight intensity={0.05} />
+      <ItemLights floor={floor} defs={defs} level={lampLevel} />
       <directionalLight
         position={
           mode === "top"
             ? // nearly overhead: short, soft shadows like a presentation floor plan
               [center.x + span * 0.08, span * 2.5, center.z + span * 0.12]
-            : [center.x + span * 0.4, span * 1.6, center.z + span * 0.6]
+            : [center.x + sun.dir.x * span * 2, sun.dir.y * span * 2, center.z + sun.dir.z * span * 2]
         }
-        intensity={1.6}
+        color={sun.color}
+        intensity={1.6 * sun.daylight}
         castShadow
         shadow-mapSize={[4096, 4096]}
         shadow-radius={6}
@@ -594,7 +838,7 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
       </directionalLight>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[center.x, -0.01, center.z]}
+        position={[center.x, Math.min(0, ...others.map((o) => o.y)) - 0.01, center.z]}
         receiveShadow
         onPointerDown={() => mode !== "walk" && useEditor.getState().select(null)}
       >
@@ -606,8 +850,12 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
           <RoomFloor key={r.meta.id} room={r} />
         ))}
         <Walls floor={floor} cut={mode === "top" ? cut : 99} rooms={rooms} />
+        <WallFinishes floor={floor} rooms={rooms} cut={mode === "top" ? cut : 99} />
         <Items floor={floor} defs={defs} onItemDown={onItemDown} selected={selected} />
       </group>
+      {others.map(({ f, y }) => (
+        <OtherFloor key={f.id} floor={f} y={y} defs={defs} />
+      ))}
       <DragController dragId={dragId} onEnd={() => setDragId(null)} />
     </>
   );
@@ -661,6 +909,9 @@ export function Scene3D() {
   const [hq, setHq] = useState(true);
   const [cut, setCut] = useState(1.4);
   const [cutOn, setCutOn] = useState(true);
+  const [hour, setHour] = useState(14);
+  const [floorsMode, setFloorsMode] = useState<FloorsMode>("one");
+  const floorCount = useEditor((s) => s.project?.floors.length ?? 1);
   const modes: { id: CamMode; label: string; icon: React.ReactNode }[] = [
     { id: "orbit", label: "Umschauen", icon: <Box size={15} /> },
     { id: "top", label: "Draufsicht", icon: <MapIcon size={15} /> },
@@ -679,7 +930,7 @@ export function Scene3D() {
           gl.toneMappingExposure = 0.92;
         }}
       >
-        <SceneContent mode={mode} cut={cutOn ? cut : 99} />
+        <SceneContent mode={mode} cut={cutOn ? cut : 99} hour={hour} floorsMode={floorsMode} />
         <QualityAndExport hq={hq} />
       </Canvas>
       <div className="absolute left-3 top-3 flex items-center gap-1 rounded-lg bg-panel/95 p-1 shadow">
@@ -708,6 +959,40 @@ export function Scene3D() {
         >
           <Sparkle size={14} /> {hq ? "Hohe Qualität" : "Schnell"}
         </button>
+        {floorCount > 1 && (
+          <label className="ml-1 flex items-center gap-1 border-l border-line pl-2 text-xs" title="Etagen in 3D">
+            <Layers size={14} />
+            <select
+              value={floorsMode}
+              onChange={(e) => setFloorsMode(e.target.value as FloorsMode)}
+              className="h-8 rounded-md bg-transparent text-xs"
+              data-testid="floors-mode"
+            >
+              <option value="one">Nur diese Etage</option>
+              <option value="below">Mit Etagen darunter</option>
+              <option value="all">Alle Etagen</option>
+            </select>
+          </label>
+        )}
+        {mode !== "top" && (
+          <label className="ml-1 flex items-center gap-1.5 border-l border-line pl-2 text-xs" title="Tageszeit">
+            <SunIcon size={14} />
+            <input
+              type="range"
+              min={6}
+              max={23}
+              step={0.5}
+              value={hour}
+              onChange={(e) => setHour(Number(e.target.value))}
+              aria-label="Tageszeit"
+              data-testid="daytime"
+              className="w-24"
+            />
+            <span className="w-10 tabular-nums">
+              {Math.floor(hour)}:{hour % 1 ? "30" : "00"}
+            </span>
+          </label>
+        )}
         {mode === "top" && (
           <div className="ml-1 flex items-center gap-2 border-l border-line pl-2 text-xs">
             <button

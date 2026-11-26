@@ -29,6 +29,21 @@ const OPENING_LABELS: Record<OpeningKind, string> = {
   bodenfenster: "Bodentiefes Fenster",
 };
 
+/** Paint colours: warm whites, greys and muted accents common in staging. */
+const WALL_COLORS = [
+  "#f4f1ea",
+  "#e9e4da",
+  "#d9d4cb",
+  "#c9c3b8",
+  "#a7a39c",
+  "#c9d4c2",
+  "#b7c4cc",
+  "#d8c3b0",
+  "#c58f78",
+  "#5d6b62",
+];
+const TILE_COLORS = ["#f2f1ee", "#e3e0da", "#c8c5bf", "#8f8c87", "#3f3e3c", "#cfd8d6", "#d9cbb8"];
+
 const WALL_LABELS: Record<WallType, string> = {
   aussen: "Außenwand",
   tragend: "Tragende Innenwand",
@@ -450,6 +465,43 @@ export function PropertiesPanel() {
                 options={materialOptions}
               />
             </Field>
+          </div>
+          <Field label="Wandfarbe (3D)">
+            <ColorSwatches
+              colors={WALL_COLORS}
+              value={r.meta.wallColor}
+              onChange={(c) =>
+                upd((m) => {
+                  m.wallColor = c;
+                })
+              }
+            />
+          </Field>
+          <div className="grid grid-cols-[6rem_1fr] items-end gap-2">
+            <Field label="Fliesen bis">
+              <NumberInput
+                value={r.meta.tileHeight ?? 0}
+                suffix="m"
+                min={0}
+                max={3}
+                onCommit={(v) =>
+                  upd((m) => {
+                    m.tileHeight = v > 0 ? v : undefined;
+                  })
+                }
+              />
+            </Field>
+            {(r.meta.tileHeight ?? 0) > 0 && (
+              <ColorSwatches
+                colors={TILE_COLORS}
+                value={r.meta.tileColor}
+                onChange={(c) =>
+                  upd((m) => {
+                    m.tileColor = c;
+                  })
+                }
+              />
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2 rounded-md bg-paper p-2 text-sm">
             <div>

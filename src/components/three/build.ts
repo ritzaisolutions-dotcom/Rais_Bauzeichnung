@@ -206,7 +206,8 @@ export async function buildFurniture(
   }
   if (!modelDone)
     def.parts.forEach((p, i) => {
-      if (opts.planCut !== undefined && p.z * size.h + (def.elevation ?? 0) > opts.planCut) return;
+      // lights stay visible in the plan although they hang above the cut
+      if (opts.planCut !== undefined && !def.light && p.z * size.h + (def.elevation ?? 0) > opts.planCut) return;
       group.add(partMesh(p, def, size, i));
     });
 

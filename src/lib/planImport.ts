@@ -52,7 +52,14 @@ async function loadImage(file: File): Promise<LoadedPlan> {
     g.fillStyle = "#fff";
     g.fillRect(0, 0, c.width, c.height);
     g.drawImage(img, 0, 0, c.width, c.height);
-    return { dataUrl: c.toDataURL("image/webp", 0.88), widthPx: c.width, heightPx: c.height, labels: [], pageCount: 1, textItems: [] };
+    return {
+      dataUrl: c.toDataURL("image/webp", 0.88),
+      widthPx: c.width,
+      heightPx: c.height,
+      labels: [],
+      pageCount: 1,
+      textItems: [],
+    };
   }
   return { dataUrl, widthPx: img.naturalWidth, heightPx: img.naturalHeight, labels: [], pageCount: 1, textItems: [] };
 }

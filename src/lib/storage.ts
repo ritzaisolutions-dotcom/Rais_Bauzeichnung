@@ -38,7 +38,14 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   try {
     const res = await api<{
       cloud: boolean;
-      projects: { id: string; name: string; thumbnail: string | null; floors: number; created_at: string; updated_at: string }[];
+      projects: {
+        id: string;
+        name: string;
+        thumbnail: string | null;
+        floors: number;
+        created_at: string;
+        updated_at: string;
+      }[];
     }>("/api/projects");
     cloudFlag = res.cloud;
     if (res.cloud) {

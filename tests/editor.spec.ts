@@ -176,8 +176,14 @@ test("tracing snaps to the walls of the drawing and takes their thickness", asyn
       return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height };
     }),
   );
-  const hs = rects.filter((r) => r.w > r.h).map((r) => r.y).sort((a, b) => a - b);
-  const vs = rects.filter((r) => r.h > r.w).map((r) => r.x).sort((a, b) => a - b);
+  const hs = rects
+    .filter((r) => r.w > r.h)
+    .map((r) => r.y)
+    .sort((a, b) => a - b);
+  const vs = rects
+    .filter((r) => r.h > r.w)
+    .map((r) => r.x)
+    .sort((a, b) => a - b);
   // click 4 px off each corner; the drawing's corners must catch the clicks
   const corners: [number, number][] = [
     [vs[0] + 4, hs[0] - 3],
@@ -305,4 +311,16 @@ test("a roof slope reduces the living area (WoFlV)", async ({ page }) => {
   await page.mouse.click(canvas.x + 8, canvas.y + 8);
   await expect(living).not.toHaveText(before);
   await expect(page.getByTestId("plan-canvas")).toContainText("2,00 m");
+});
+
+test("room wall colour and time of day in 3D", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "Farben");
+  await page.locator("table").getByText("Bad", { exact: true }).click();
+  await expect(page.getByText("Wandfarbe (3D)")).toBeVisible();
+  await page.getByLabel("Fliesen bis").fill("1,2");
+  await page.getByLabel("Fliesen bis").press("Enter");
+  await page.getByTestId("view-split").click();
+  await expect(page.getByTestId("scene-3d")).toBeVisible();
+  await page.getByTestId("daytime").fill("21");
+  await expect(page.getByTestId("scene-3d")).toContainText("21:00");
 });

@@ -72,6 +72,11 @@ export interface RoomMeta {
   targetArea?: number;
   /** Room type drives automatic staging. */
   roomType?: RoomType;
+  /** Paint colour of the walls facing this room. */
+  wallColor?: string;
+  /** Wall tiles up to this height (meters), e.g. in bathrooms. */
+  tileHeight?: number;
+  tileColor?: string;
 }
 
 export type RoomType =
@@ -243,6 +248,8 @@ export interface FurnitureDef {
   elevation?: number;
   model?: FurnitureModelRef;
   children?: FurnitureChild[];
+  /** Light source: z is the height of the bulb relative to the item height (0..1). */
+  light?: { z: number; intensity: number; color?: string; distance?: number };
   custom?: boolean;
 }
 

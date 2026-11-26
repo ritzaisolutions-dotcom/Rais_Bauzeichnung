@@ -100,7 +100,13 @@ export function executeTool(name: string, rawInput: unknown): { ok: boolean; res
         })),
       );
     case "add_wall": {
-      const i = input as { x1: number; y1: number; x2: number; y2: number; wall_type?: "aussen" | "innen" | "tragend" | "gelaender" };
+      const i = input as {
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+        wall_type?: "aussen" | "innen" | "tragend" | "gelaender";
+      };
       let ids: string[] = [];
       mutate((f) => {
         ids = addWall(f, { x: i.x1, y: i.y1 }, { x: i.x2, y: i.y2 }, { type: i.wall_type ?? "innen" });
