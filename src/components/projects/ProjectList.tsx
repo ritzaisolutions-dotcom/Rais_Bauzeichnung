@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, FileUp, FolderOpen, LayoutGrid, Plus, Trash2, Upload } from "lucide-react";
+import { Copy, FileUp, FolderOpen, LayoutGrid, LogOut, Plus, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -71,6 +71,16 @@ export function ProjectList() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              title="Abmelden"
+              onClick={async () => {
+                await fetch("/api/logout", { method: "POST" });
+                router.replace("/login");
+              }}
+            >
+              <LogOut size={15} />
+            </Button>
             <Button onClick={() => fileRef.current?.click()}>
               <Upload size={15} /> <span className="hidden sm:inline">Projektdatei öffnen</span>
             </Button>

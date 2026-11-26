@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropicTools, SYSTEM_PROMPT } from "@/ai/tools";
+import { allowAi } from "@/lib/rateLimit";
 import { clientFor, errorResponse, FALLBACK_BETA, MODEL, noKeyResponse } from "@/ai/server";
 
 export const runtime = "nodejs";
@@ -10,6 +11,8 @@ export const maxDuration = 300;
  * against the editor, then calls this route again with the tool results.
  */
 export async function POST(req: Request) {
+  const limit = allowAi(req);
+  if (!limit.ok) return Response.json({ error: limit.reason }, { status: 429 });
   const client = clientFor(req);
   if (!client) return noKeyResponse();
   let body: { messages?: Anthropic.Beta.BetaMessageParam[] };

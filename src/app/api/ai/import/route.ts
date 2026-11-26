@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { planSchema } from "@/ai/planSchema";
+import { allowAi } from "@/lib/rateLimit";
 import { clientFor, errorResponse, FALLBACK_BETA, MODEL, noKeyResponse } from "@/ai/server";
 
 export const runtime = "nodejs";
@@ -104,6 +105,8 @@ ${text || "(keine)"}
 Rufen Sie zum Schluss genau einmal das Werkzeug submit_floorplan auf.`;
 
 export async function POST(req: Request) {
+  const limit = allowAi(req);
+  if (!limit.ok) return Response.json({ error: limit.reason }, { status: 429 });
   const client = clientFor(req);
   if (!client) return noKeyResponse();
   const parsed = requestSchema.safeParse(await req.json().catch(() => null));

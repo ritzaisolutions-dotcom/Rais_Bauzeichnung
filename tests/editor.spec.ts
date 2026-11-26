@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
+async function login(page: Page) {
+  const res = await page.request.post("/api/login", { data: { password: "test-passwort" } });
+  expect(res.ok()).toBe(true);
+}
+
 async function newProject(page: Page, template: "Leerer Grundriss" | "Beispielwohnung", name = "Testprojekt") {
+  await login(page);
   await page.goto("/");
   await page.getByTestId("new-project").click();
   await page.getByTestId("project-name").fill(name);
@@ -97,4 +103,19 @@ test("imports a construction drawing PDF with scale and room labels", async ({ p
   await page.getByText("Als Unterlage übernehmen und nachzeichnen").click();
   await expect(page.getByTestId("plan-canvas").locator("image")).toHaveCount(1);
   await expect(page.getByText("Raumnamen übernehmen")).toBeVisible();
+});
+
+test("the app and the AI routes require the password", async ({ page, request }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByTestId("login-password").fill("falsch");
+  await page.getByTestId("login-submit").click();
+  await expect(page.getByText("Das Passwort ist falsch.")).toBeVisible();
+  const api = await request.post("/api/ai/chat", { data: { messages: [] } });
+  expect(api.status()).toBe(401);
+  await page.getByTestId("login-password").fill("test-passwort");
+  await page.getByTestId("login-submit").click();
+  await expect(page.getByTestId("new-project")).toBeVisible();
+  await page.getByTitle("Abmelden").click();
+  await expect(page).toHaveURL(/\/login/);
 });
