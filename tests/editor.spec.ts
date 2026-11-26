@@ -324,3 +324,52 @@ test("room wall colour and time of day in 3D", async ({ page }) => {
   await page.getByTestId("daytime").fill("21");
   await expect(page.getByTestId("scene-3d")).toContainText("21:00");
 });
+
+test("exports a to-scale PDF plan with title block", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "PDF-Test");
+  await page.getByRole("button", { name: /Export/ }).click();
+  await page.getByText("PDF-Plan maßstäblich").click();
+  await page.getByRole("dialog").locator("select").nth(0).selectOption("A4");
+  await page.getByRole("dialog").locator("select").nth(2).selectOption("100");
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("pdf-export").click()]);
+  const path = "test-results/plan.pdf";
+  await dl.saveAs(path);
+  const { PDFDocument } = await import("pdf-lib");
+  const doc = await PDFDocument.load(readFileSync(path));
+  const { width, height } = doc.getPage(0).getSize();
+  // A4 landscape in points
+  expect(width).toBeCloseTo((297 * 72) / 25.4, 0);
+  expect(height).toBeCloseTo((210 * 72) / 25.4, 0);
+});
+
+test("DXF export can be imported again and walls derived from it", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "DXF-Quelle");
+  await page.getByRole("button", { name: /Export/ }).click();
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByText("DXF für CAD (mm)").click()]);
+  const path = "test-results/plan.dxf";
+  await dl.saveAs(path);
+  expect(readFileSync(path, "utf8")).toContain("WAENDE");
+
+  await page.goto("/");
+  await page.getByTestId("new-project").click();
+  await page.getByTestId("project-name").fill("DXF-Import");
+  await page.getByText("Leerer Grundriss", { exact: true }).click();
+  await page.getByTestId("create-project").click();
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+  await page.getByTestId("import-button").click();
+  await page.getByTestId("import-file").setInputFiles(path);
+  await expect(page.getByText("Maßstäblich aus DXF in mm")).toBeVisible();
+  await page.getByTestId("derive-walls").click();
+  await expect(page.getByText(/Wände und \d+ Öffnungen aus der Zeichnung abgeleitet/)).toBeVisible({ timeout: 20000 });
+  await page.screenshot({ path: "test-results/dxf-derived.png" });
+  expect(await page.locator('[data-kind="room"]').count()).toBeGreaterThanOrEqual(5);
+});
+
+test("DWG files get a conversion hint", async ({ page }) => {
+  await newProject(page, "Leerer Grundriss");
+  await page.getByTestId("import-button").click();
+  await page
+    .getByTestId("import-file")
+    .setInputFiles({ name: "plan.dwg", mimeType: "application/octet-stream", buffer: Buffer.from("AC1032") });
+  await expect(page.getByText(/DWG-Dateien können nicht direkt gelesen werden/)).toBeVisible();
+});

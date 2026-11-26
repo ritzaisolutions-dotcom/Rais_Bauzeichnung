@@ -1,12 +1,13 @@
 "use client";
 
 import clsx from "clsx";
-import { Check, Crop as CropIcon, FileUp, Loader2, PenLine, Plus, Sparkles, X } from "lucide-react";
+import { Check, Crop as CropIcon, FileUp, Loader2, PenLine, Plus, Sparkles, Wand2, X } from "lucide-react";
 import { useState } from "react";
+import { applyUnderlayLabels } from "@/ai/applyPlan";
 import { aiFetch } from "@/ai/client";
 import { buildPreview, commitRecognised, textForAi, type Crop, type ImportPreview } from "@/ai/importPreview";
 import type { RecognisedPlan } from "@/ai/planSchema";
-import { loadPlanFile, underlayForAi, type LoadedPlan } from "@/lib/planImport";
+import { loadPlanFile, underlayForAi, UnsupportedFileError, type LoadedPlan } from "@/lib/planImport";
 import { registry } from "@/lib/registry";
 import { formatM } from "@/model/geometry";
 import { emptyFloor } from "@/model/ops";
@@ -56,10 +57,14 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
       setPlan(res);
       setCrop(null);
       setResult(null);
-      setRatio(res.scaleRatio ? "auto" : "kalibrieren");
+      setRatio(res.pxPerMeter ? "auto" : "kalibrieren");
     } catch (e) {
       console.error(e);
-      setError("Die Datei konnte nicht gelesen werden. Unterstützt werden PDF, PNG und JPG.");
+      setError(
+        e instanceof UnsupportedFileError
+          ? e.message
+          : "Die Datei konnte nicht gelesen werden. Unterstützt werden PDF, DXF, PNG und JPG.",
+      );
     } finally {
       setLoading(false);
     }
@@ -118,6 +123,43 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
   const close = () => {
     onClose();
     reset();
+  };
+
+  const [deriving, setDeriving] = useState(false);
+  /** Builds walls from the walls detected in the drawing (needs a known scale). */
+  const derive = async () => {
+    if (!plan) return;
+    setDeriving(true);
+    setError(null);
+    try {
+      const u = commitUnderlay(plan);
+      const [{ underlayLines }, { toWorldLines }, { deriveFromAxes }] = await Promise.all([
+        import("@/lib/underlaySnap"),
+        import("@/lib/underlayLines"),
+        import("@/model/wallsFromAxes"),
+      ]);
+      const lines = await underlayLines(u);
+      const axes = lines ? toWorldLines(lines, u).axes : [];
+      if (!axes.length)
+        throw new Error("In der Zeichnung wurden keine Wände erkannt. Bitte nachzeichnen oder die KI nutzen.");
+      let res = { walls: 0, openings: 0 };
+      const st = useEditor.getState();
+      st.mutate((f) => {
+        res = deriveFromAxes(f, axes);
+        applyUnderlayLabels(f);
+      });
+      st.setView("2d");
+      st.setTool("select");
+      setTimeout(() => registry.fit?.(), 50);
+      st.showToast(
+        `${res.walls} Wände und ${res.openings} Öffnungen aus der Zeichnung abgeleitet. Bitte Türarten, Fenster und Maße prüfen.`,
+      );
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ableiten fehlgeschlagen.");
+    } finally {
+      setDeriving(false);
+    }
   };
 
   const trace = () => {
@@ -194,6 +236,7 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
 
   const scaleOptions = [
     ...(plan?.scaleRatio ? [{ value: "auto", label: `Aus dem Plan: 1:${plan.scaleRatio}` }] : []),
+    ...(plan?.scaleSource ? [{ value: "auto", label: `Aus der Datei (${plan.scaleSource})` }] : []),
     { value: "kalibrieren", label: "Nach dem Import kalibrieren" },
     ...(plan?.scaleRatio ? ["50", "100", "200"].map((v) => ({ value: v, label: `1:${v}` })) : []),
   ];
@@ -219,14 +262,14 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
             <FileUp className="text-accent" size={32} />
           )}
           <div>
-            <div className="font-semibold">PDF, PNG oder JPG hierher ziehen oder auswählen</div>
+            <div className="font-semibold">PDF, DXF, PNG oder JPG hierher ziehen oder auswählen</div>
             <div className="mt-1 text-sm text-muted">
               Bei Architekten-PDFs werden Maßstab (z. B. 1:100), Raumnamen und Flächen automatisch gelesen.
             </div>
           </div>
           <input
             type="file"
-            accept="application/pdf,image/png,image/jpeg"
+            accept="application/pdf,image/png,image/jpeg,.dxf,.dwg"
             className="hidden"
             data-testid="import-file"
             onChange={(e) => {
@@ -283,7 +326,11 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
                 {plan.pageCount > 1 && ` · Seite ${page} von ${plan.pageCount}`}
               </div>
               <div className="mt-2">
-                {plan.scaleRatio ? `Maßstab erkannt: 1:${plan.scaleRatio}` : "Kein Maßstab im Plan gefunden."}
+                {plan.scaleRatio
+                  ? `Maßstab erkannt: 1:${plan.scaleRatio}`
+                  : plan.scaleSource
+                    ? `Maßstäblich aus ${plan.scaleSource}`
+                    : "Kein Maßstab im Plan gefunden."}
               </div>
               <div>
                 {plan.labels.length
@@ -389,6 +436,16 @@ export function ImportDialog({ open, onClose }: { open: boolean; onClose: () => 
                     : crop
                       ? "Ausschnitt mit KI erkennen"
                       : "Mit KI automatisch erkennen"}
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() => void derive()}
+                  disabled={aiBusy || deriving || !pxPerMeterFor(plan)}
+                  title={pxPerMeterFor(plan) ? undefined : "Braucht einen bekannten Maßstab"}
+                  data-testid="derive-walls"
+                >
+                  {deriving ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />} Wände aus der
+                  Zeichnung ableiten (ohne KI)
                 </Button>
                 <Button className="w-full" onClick={trace} disabled={aiBusy}>
                   <PenLine size={16} /> Als Unterlage übernehmen und nachzeichnen

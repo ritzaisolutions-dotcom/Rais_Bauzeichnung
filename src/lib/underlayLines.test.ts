@@ -48,7 +48,7 @@ describe("detectUnderlayLines", () => {
     fill(100, 250, 700, 251);
     const r = detectUnderlayLines(bmp, 100);
     expect(r.axes).toHaveLength(1);
-    expect(r.axes[0]).toMatchObject({ dir: "h", at: 107.5, thickness: 15, from: 200, to: 600 });
+    expect(r.axes[0]).toMatchObject({ dir: "h", at: 107.5, thickness: 13, from: 200, to: 600 });
   });
 
   it("splits a wall at a door opening", () => {

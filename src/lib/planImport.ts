@@ -22,13 +22,25 @@ export interface LoadedPlan {
   pageCount: number;
   /** Plain text lines of the page, given to the AI as context. */
   textItems: { str: string; px: number; py: number }[];
+  /** Where the scale comes from when it is not a "1:100" text, e.g. "DXF in mm". */
+  scaleSource?: string;
 }
+
+/** Shown for DWG files: the format is closed, the user converts to DXF first. */
+export class UnsupportedFileError extends Error {}
 
 const TARGET_PX = 3200;
 const PT_PER_MM = 72 / 25.4;
 
 export async function loadPlanFile(file: File, pageNumber = 1): Promise<LoadedPlan> {
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".dwg")) {
+    throw new UnsupportedFileError(
+      "DWG-Dateien können nicht direkt gelesen werden. Bitte in Ihrem CAD-Programm (AutoCAD, BricsCAD, ArchiCAD, Vectorworks) „Speichern unter → DXF“ wählen oder den kostenlosen ODA File Converter nutzen, dann die DXF-Datei importieren.",
+    );
+  }
+  if (name.endsWith(".dxf")) return loadDxf(await file.text());
+  if (file.type === "application/pdf" || name.endsWith(".pdf")) {
     return loadPdf(await file.arrayBuffer(), pageNumber);
   }
   return loadImage(file);
@@ -62,6 +74,56 @@ async function loadImage(file: File): Promise<LoadedPlan> {
     };
   }
   return { dataUrl, widthPx: img.naturalWidth, heightPx: img.naturalHeight, labels: [], pageCount: 1, textItems: [] };
+}
+
+const DXF_MARGIN = 0.5;
+
+/** Draws a DXF to scale as an underlay image (at most 4000 px). */
+async function loadDxf(text: string): Promise<LoadedPlan> {
+  const { parseDxf } = await import("./dxf");
+  let g;
+  try {
+    g = parseDxf(text);
+  } catch (e) {
+    throw new UnsupportedFileError(e instanceof Error ? e.message : "Die DXF-Datei konnte nicht gelesen werden.");
+  }
+  const w = g.bounds.maxX + DXF_MARGIN * 2;
+  const h = g.bounds.maxY + DXF_MARGIN * 2;
+  const ppm = Math.min(150, 4000 / Math.max(w, h));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * ppm);
+  c.height = Math.round(h * ppm);
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  const X = (v: number) => (v + DXF_MARGIN) * ppm;
+  ctx.strokeStyle = "#111";
+  ctx.lineWidth = Math.max(1.2, ppm / 80);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  for (const [a, b] of g.segments) {
+    ctx.moveTo(X(a.x), X(a.y));
+    ctx.lineTo(X(b.x), X(b.y));
+  }
+  ctx.stroke();
+  ctx.fillStyle = "#222";
+  const textItems: LoadedPlan["textItems"] = [];
+  for (const t of g.texts) {
+    const size = Math.max(8, t.height * ppm);
+    ctx.font = `${size}px sans-serif`;
+    ctx.fillText(t.str, X(t.x), X(t.y));
+    textItems.push({ str: t.str, px: X(t.x), py: X(t.y) - size * 0.35 });
+  }
+  return {
+    dataUrl: c.toDataURL("image/webp", 0.92),
+    widthPx: c.width,
+    heightPx: c.height,
+    pxPerMeter: ppm,
+    labels: extractRoomLabels(textItems, (0.3 * ppm) / 12),
+    pageCount: 1,
+    textItems,
+    scaleSource: `DXF in ${g.unitLabel}`,
+  };
 }
 
 export function loadImg(src: string) {

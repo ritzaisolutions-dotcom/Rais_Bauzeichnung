@@ -114,31 +114,37 @@ export function detectUnderlayLines(b: Bitmap, ppm: number): UnderlayLines {
   // furniture, stairs or dimensions, so only outline-style drawings get paired.
   if (axes.length < 4) {
     const maxPair = 0.5 * ppm;
+    const minOverlap = Math.max(minRun * 0.6, 8);
     for (const dir of ["h", "v"] as const) {
       const thin = thinByDir[dir].sort((p, q) => p.a0 - q.a0);
-      const used = new Set<Band>();
+      // each line pairs with the nearest parallel line below it, piece by piece, so a
+      // face line broken by a joining wall still pairs with the continuous other face
       for (const p of thin) {
-        if (used.has(p)) continue;
         let best: Band | null = null;
         for (const q of thin) {
-          if (q === p || used.has(q)) continue;
           const gap = q.a0 - p.a0;
           if (gap < minWall || gap > maxPair) continue;
           const ov = Math.min(p.to, q.to) - Math.max(p.from, q.from);
-          if (ov < 0.6 * Math.min(p.to - p.from, q.to - q.from)) continue;
+          if (ov < minOverlap) continue;
           if (!best || gap < best.a0 - p.a0) best = q;
         }
         if (!best) continue;
-        used.add(p).add(best);
-        const outer0 = p.a0;
-        const outer1 = best.a1 + 1;
-        axes.push({
-          dir,
-          at: (outer0 + outer1) / 2,
-          from: Math.max(p.from, best.from),
-          to: Math.min(p.to, best.to) + 1,
-          thickness: outer1 - outer0,
-        });
+        // only if no other line lies between them over this stretch (else it is not one wall)
+        const from = Math.max(p.from, best.from);
+        const to = Math.min(p.to, best.to);
+        const between = thin.some(
+          (m) =>
+            m !== p &&
+            m !== best &&
+            m.a0 > p.a1 &&
+            m.a1 < best!.a0 &&
+            Math.min(m.to, to) - Math.max(m.from, from) > minOverlap,
+        );
+        if (between) continue;
+        // the drawn lines are the wall faces: measure between their centres, not their outer edges
+        const c0 = (p.a0 + p.a1 + 1) / 2;
+        const c1 = (best.a0 + best.a1 + 1) / 2;
+        axes.push({ dir, at: (c0 + c1) / 2, from, to: to + 1, thickness: c1 - c0 });
       }
     }
   }

@@ -39,6 +39,7 @@ import { emptyFloor, uid } from "@/model/ops";
 import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
 import { isCloud } from "@/lib/storage";
 import { Button, IconButton } from "../ui";
+import { PdfExportDialog } from "./PdfExportDialog";
 import { ShareDialog } from "./ShareDialog";
 
 function Menu({
@@ -121,6 +122,7 @@ export function TopBar({
   const st = useEditor.getState();
   const [cloud, setCloud] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false);
   useEffect(() => {
     isCloud().then(setCloud, () => setCloud(false));
   }, []);
@@ -343,7 +345,25 @@ export function TopBar({
                 });
               }}
             >
-              Drucken / als PDF speichern
+              Drucken
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                close();
+                setPdfOpen(true);
+              }}
+            >
+              PDF-Plan maßstäblich (mit Plankopf) …
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                close();
+                void import("@/lib/dxf").then(({ floorToDxf }) =>
+                  download(new Blob([floorToDxf(floor)], { type: "application/dxf" }), `${base}.dxf`),
+                );
+              }}
+            >
+              DXF für CAD (mm)
             </MenuItem>
             <div className="my-1 h-px bg-line" />
             <MenuItem
@@ -393,6 +413,22 @@ export function TopBar({
           <Share2 size={15} /> <span className="hidden lg:inline">Teilen</span>
         </Button>
       )}
+      <PdfExportDialog
+        open={pdfOpen}
+        onClose={() => setPdfOpen(false)}
+        onExport={async (o) => {
+          const { planPdf } = await import("@/lib/pdfExport");
+          let err: unknown = null;
+          await withPlan(async () => {
+            try {
+              download(await planPdf(project, floor, o), `${base}_plan.pdf`);
+            } catch (e) {
+              err = e;
+            }
+          });
+          if (err) throw err;
+        }}
+      />
       {cloud && <ShareDialog projectId={project.id} open={shareOpen} onClose={() => setShareOpen(false)} />}
       <Button variant={chatOpen ? "primary" : "default"} onClick={onToggleChat} data-testid="chat-toggle">
         <Sparkles size={15} /> <span className="hidden lg:inline">KI-Assistent</span>

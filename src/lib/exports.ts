@@ -24,15 +24,20 @@ export const safeName = (s: string) =>
     .replace(/\s+/g, "_") || "grundriss";
 
 /** Serialises the current 2D plan, framed to the floor's bounds, as a standalone SVG. */
-export function planSvgString(floor: Floor, pxPerMeter = 120): { svg: string; width: number; height: number } | null {
+/** Plan extent in meters (floor bounds plus a margin), shared by the image and PDF exports. */
+export function planExtent(floor: Floor, pad = 0.8) {
+  const b = floorBounds(floor);
+  return { x: b.minX - pad, y: b.minY - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+}
+
+export function planSvgString(
+  floor: Floor,
+  pxPerMeter = 120,
+  pad = 0.8,
+): { svg: string; width: number; height: number } | null {
   const src = registry.svg;
   if (!src) return null;
-  const b = floorBounds(floor);
-  const pad = 0.8;
-  const x = b.minX - pad;
-  const y = b.minY - pad;
-  const w = b.w + pad * 2;
-  const h = b.h + pad * 2;
+  const { x, y, w, h } = planExtent(floor, pad);
   const clone = src.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   clone.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
@@ -53,8 +58,8 @@ export function planSvgString(floor: Floor, pxPerMeter = 120): { svg: string; wi
   return { svg: new XMLSerializer().serializeToString(clone), width, height };
 }
 
-export async function planPngBlob(floor: Floor, pxPerMeter = 300): Promise<Blob | null> {
-  const res = planSvgString(floor, pxPerMeter);
+export async function planPngBlob(floor: Floor, pxPerMeter = 300, pad = 0.8): Promise<Blob | null> {
+  const res = planSvgString(floor, pxPerMeter, pad);
   if (!res) return null;
   const url = URL.createObjectURL(new Blob([res.svg], { type: "image/svg+xml" }));
   try {
