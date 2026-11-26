@@ -585,7 +585,7 @@ function Items({
           >
             <FurnitureModel def={def} item={it} lookup={lookup} />
             {selected.has(it.id) && (
-              <lineSegments position={[0, it.h / 2, 0]} material={SELECT_MAT}>
+              <lineSegments position={[0, it.h / 2, 0]} material={SELECT_MAT} userData={{ noExport: true }}>
                 <edgesGeometry args={[new THREE.BoxGeometry(it.w + 0.04, it.h + 0.04, it.d + 0.04)]} />
               </lineSegments>
             )}
@@ -767,6 +767,49 @@ function SceneContent({
       registry.scene = null;
     };
   }, []);
+
+  const getState = useThree((s) => s.get);
+  useEffect(() => {
+    registry.pathScene = () => {
+      if (!groupRef.current || !floor) return null;
+      const lamps =
+        lampLevel <= 0.01
+          ? []
+          : floor.items
+              .map((it) => ({ it, def: findDef(it.defId, defs) }))
+              .filter((x) => x.def?.light)
+              .slice(0, 12)
+              .map(({ it, def }) => ({
+                position: [it.x, (it.elevation ?? 0) + def!.light!.z * it.h - 0.03, it.y] as [number, number, number],
+                color: def!.light!.color ?? "#ffe6c4",
+                intensity: def!.light!.intensity * lampLevel,
+                distance: def!.light!.distance ?? 6,
+              }));
+      return {
+        content: groupRef.current,
+        camera: getState().camera,
+        sun: { dir: sun.dir, color: sun.color, daylight: sun.daylight },
+        lamps,
+        center: { x: center.x, z: center.z },
+        span,
+      };
+    };
+    // diagnostics: render a small path-traced image from the browser console
+    (window as unknown as { __raisPathTrace?: unknown }).__raisPathTrace = async (w = 320, h = 200, samples = 4) => {
+      const input = registry.pathScene?.();
+      if (!input) return null;
+      const { renderPhoto } = await import("@/lib/pathTrace");
+      const blob = await renderPhoto(input, { width: w, height: h, samples });
+      return await new Promise<string>((r) => {
+        const fr = new FileReader();
+        fr.onload = () => r(fr.result as string);
+        fr.readAsDataURL(blob);
+      });
+    };
+    return () => {
+      registry.pathScene = null;
+    };
+  }, [getState, floor, defs, lampLevel, sun.dir, sun.color, sun.daylight, center, span]);
 
   if (!floor) return null;
 

@@ -407,3 +407,33 @@ test("furniture top views come from the cache after a reload", async ({ page }) 
   await page.getByTestId("intro").getByText("Verstanden").click();
   await page.screenshot({ path: "test-results/wohnkueche-staging.png" });
 });
+
+test("photoreal image (path tracing) is rendered and downloaded", async ({ page }) => {
+  test.setTimeout(300000);
+  await newProject(page, "Beispielwohnung", "Foto");
+  await page.getByRole("button", { name: "Alle Räume einrichten" }).click();
+  await page.getByTestId("view-3d").click();
+  await expect(page.getByTestId("scene-3d")).toBeVisible({ timeout: 30000 });
+  await page.waitForTimeout(3000);
+  await page.getByRole("button", { name: /Export/ }).click();
+  await page.getByText("Fotorealistisches Bild (Pathtracing)").click();
+  const dialog = page.getByRole("dialog", { name: "Fotorealistisches Bild" });
+  await dialog.locator("select").nth(0).selectOption("klein");
+  await dialog.locator("select").nth(1).selectOption("entwurf");
+  await page.getByTestId("photo-start").click();
+  // software WebGL in CI is slow: save the image after the first full pass ("Jetzt speichern")
+  const save = dialog.getByRole("button", { name: "Jetzt speichern" });
+  const fallback = page.waitForEvent("download", { timeout: 240000 });
+  const saved = expect(save)
+    .toBeEnabled({ timeout: 240000 })
+    .then(() => Promise.all([page.waitForEvent("download"), save.click()]).then(([d]) => d));
+  const dl = await Promise.race([saved, fallback]);
+  const name = dl.suggestedFilename();
+  console.log("photo download:", name);
+  expect(name).toMatch(/_(foto|3d)_1280\.png$/);
+  const path = `test-results/${name}`;
+  await dl.saveAs(path);
+  const png = readFileSync(path);
+  // PNG header: width at byte 16
+  expect(png.readUInt32BE(16)).toBe(1280);
+});

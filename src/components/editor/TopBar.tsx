@@ -40,6 +40,7 @@ import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
 import { isCloud } from "@/lib/storage";
 import { Button, IconButton } from "../ui";
 import { PdfExportDialog } from "./PdfExportDialog";
+import { PhotoRenderDialog } from "./PhotoRenderDialog";
 import { ShareDialog } from "./ShareDialog";
 
 function Menu({
@@ -123,6 +124,7 @@ export function TopBar({
   const [cloud, setCloud] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   useEffect(() => {
     isCloud().then(setCloud, () => setCloud(false));
   }, []);
@@ -380,6 +382,16 @@ export function TopBar({
             <MenuItem
               onClick={() => {
                 close();
+                // the 3D view must be mounted for camera and scene
+                if (st.view === "2d") st.setView("split");
+                setPhotoOpen(true);
+              }}
+            >
+              Fotorealistisches Bild (Pathtracing) …
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                close();
                 void with3d(async () => {
                   const b = await exportGlb();
                   if (b) download(b, `${base}.glb`);
@@ -413,6 +425,7 @@ export function TopBar({
           <Share2 size={15} /> <span className="hidden lg:inline">Teilen</span>
         </Button>
       )}
+      <PhotoRenderDialog open={photoOpen} onClose={() => setPhotoOpen(false)} fileBase={base} />
       <PdfExportDialog
         open={pdfOpen}
         onClose={() => setPdfOpen(false)}
