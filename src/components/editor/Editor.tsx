@@ -5,7 +5,8 @@ import { X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { listGlobalFurniture, loadProject, saveProject } from "@/lib/db";
+import { listGlobalFurniture } from "@/lib/db";
+import { loadProject, saveProject } from "@/lib/storage";
 import { planPngBlob } from "@/lib/exports";
 import { useEditor } from "@/store/editor";
 import { PlanCanvas } from "../plan/PlanCanvas";
@@ -35,7 +36,7 @@ export function Editor({ id }: { id: string }) {
   const project = useEditor((s) => s.project);
   const view = useEditor((s) => s.view);
   const toast = useEditor((s) => s.toast);
-  const [status, setStatus] = useState<"loading" | "missing" | "ready">("loading");
+  const [status, setStatus] = useState<"loading" | "missing" | "error" | "ready">("loading");
   const [savedAt, setSavedAt] = useState(0);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
@@ -45,8 +46,9 @@ export function Editor({ id }: { id: string }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const p = await loadProject(id);
+      const p = await loadProject(id).catch(() => undefined);
       if (cancelled) return;
+      if (p === undefined) return setStatus("error");
       if (!p) return setStatus("missing");
       useEditor.getState().load(p);
       useEditor.getState().setGlobalFurniture(await listGlobalFurniture());
@@ -72,8 +74,19 @@ export function Editor({ id }: { id: string }) {
         const blob = floor && floor.walls.length ? await planPngBlob(floor, 24).catch(() => null) : null;
         if (blob) toSave = { ...project, thumbnail: await blobToDataUrl(blob) };
       }
-      await saveProject(toSave);
-      setSavedAt(project.updatedAt);
+      try {
+        await saveProject(toSave);
+        setSavedAt(project.updatedAt);
+      } catch (e) {
+        const st = (e as { status?: number }).status;
+        useEditor
+          .getState()
+          .showToast(
+            st === 409
+              ? "Das Projekt wurde inzwischen an anderer Stelle geändert. Bitte laden Sie die Seite neu, bevor Sie weiterarbeiten."
+              : `Speichern fehlgeschlagen: ${e instanceof Error ? e.message : "unbekannter Fehler"}. Ihre Änderungen bleiben in diesem Fenster erhalten.`,
+          );
+      }
     }, 700);
     return () => clearTimeout(t);
   }, [project, status]);
@@ -86,10 +99,19 @@ export function Editor({ id }: { id: string }) {
 
   if (status === "loading")
     return <div className="flex h-screen items-center justify-center text-muted">Projekt wird geladen …</div>;
+  if (status === "error")
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3">
+        <p>Das Projekt konnte nicht geladen werden. Bitte prüfen Sie die Verbindung und laden Sie die Seite neu.</p>
+        <Link href="/" className="text-accent underline">
+          Zur Projektübersicht
+        </Link>
+      </div>
+    );
   if (status === "missing")
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3">
-        <p>Dieses Projekt gibt es in diesem Browser nicht.</p>
+        <p>Dieses Projekt wurde nicht gefunden.</p>
         <Link href="/" className="text-accent underline">
           Zur Projektübersicht
         </Link>

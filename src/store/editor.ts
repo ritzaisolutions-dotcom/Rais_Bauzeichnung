@@ -55,8 +55,10 @@ interface EditorState {
   wallThickness: number;
   revision: number;
   toast: string | null;
+  /** Shared view: nothing can be changed or selected. */
+  readOnly: boolean;
 
-  load: (p: Project) => void;
+  load: (p: Project, opts?: { readOnly?: boolean }) => void;
   setFloor: (id: string) => void;
   /** Applies a change to the active floor. history=false for continuous drags. */
   mutate: (fn: (floor: Floor, project: Project) => void, opts?: { history?: boolean; normalize?: boolean }) => void;
@@ -94,9 +96,11 @@ export const useEditor = create<EditorState>((set, get) => ({
   wallThickness: 0.36,
   revision: 0,
   toast: null,
+  readOnly: false,
 
-  load: (p) =>
+  load: (p, opts = {}) =>
     set({
+      readOnly: !!opts.readOnly,
       project: p,
       floorId: p.floors[0]?.id ?? "",
       past: [],
@@ -109,8 +113,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   setFloor: (id) => set({ floorId: id, selection: [] }),
 
   mutate: (fn, opts = {}) => {
-    const { project, floorId, past, revision } = get();
-    if (!project) return;
+    const { project, floorId, past, revision, readOnly } = get();
+    if (!project || readOnly) return;
     const next = produce(project, (draft) => {
       const floor = draft.floors.find((f) => f.id === floorId);
       if (!floor) return;
@@ -128,8 +132,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   mutateProject: (fn, opts = {}) => {
-    const { project, past, revision } = get();
-    if (!project) return;
+    const { project, past, revision, readOnly } = get();
+    if (!project || readOnly) return;
     const next = produce(project, (draft) => {
       fn(draft);
       draft.updatedAt = Date.now();
@@ -143,14 +147,14 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   checkpoint: () => {
-    const { project, past } = get();
-    if (!project) return;
+    const { project, past, readOnly } = get();
+    if (!project || readOnly) return;
     set({ past: [...past.slice(-HISTORY_LIMIT), project], future: [] });
   },
 
   undo: () => {
     const { past, project, future, floorId, revision } = get();
-    if (!past.length || !project) return;
+    if (!past.length || !project || get().readOnly) return;
     const prev = past[past.length - 1];
     set({
       project: prev,
@@ -164,7 +168,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   redo: () => {
     const { past, project, future, floorId, revision } = get();
-    if (!future.length || !project) return;
+    if (!future.length || !project || get().readOnly) return;
     const next = future[0];
     set({
       project: next,
@@ -177,7 +181,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   select: (s, additive = false) => {
-    if (s === null) return set({ selection: [] });
+    if (s === null || get().readOnly) return set({ selection: [] });
     const list = Array.isArray(s) ? s : [s];
     if (!additive) return set({ selection: list });
     const cur = get().selection;

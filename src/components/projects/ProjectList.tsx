@@ -1,10 +1,19 @@
 "use client";
 
-import { Copy, FileUp, FolderOpen, LayoutGrid, LogOut, Plus, Trash2, Upload } from "lucide-react";
+import { CloudUpload, Copy, FileUp, FolderOpen, LayoutGrid, LogOut, Plus, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { deleteProject, listProjects, saveProject, type ProjectRow } from "@/lib/db";
+import {
+  deleteProject,
+  isCloud,
+  listProjects,
+  loadProject,
+  localOnlyProjects,
+  migrateToCloud,
+  saveProject,
+  type ProjectSummary,
+} from "@/lib/storage";
 import { readProjectFile } from "@/lib/exports";
 import { uid } from "@/model/ops";
 import { createProject } from "@/model/project";
@@ -14,34 +23,59 @@ const timestamp = () => Date.now();
 
 export function ProjectList() {
   const router = useRouter();
-  const [rows, setRows] = useState<ProjectRow[] | null>(null);
+  const [rows, setRows] = useState<ProjectSummary[] | null>(null);
+  const [cloud, setCloud] = useState(false);
+  const [localCount, setLocalCount] = useState(0);
+  const [migrating, setMigrating] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<"leer" | "beispiel" | "import">("leer");
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const refresh = async () => setRows(await listProjects());
+  const load = async () => {
+    const list = await listProjects();
+    const c = await isCloud();
+    return { list, cloud: c, local: c ? (await localOnlyProjects()).length : 0 };
+  };
+  const apply = (r: Awaited<ReturnType<typeof load>>) => {
+    setRows(r.list);
+    setCloud(r.cloud);
+    setLocalCount(r.local);
+  };
+  const fail = (e: unknown) => {
+    setRows((r) => r ?? []);
+    setError(e instanceof Error ? e.message : "Die Projekte konnten nicht geladen werden.");
+  };
+  const refresh = () => load().then(apply, fail);
   useEffect(() => {
-    listProjects().then(setRows);
+    load().then(apply, fail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   const create = async () => {
     const p = createProject(name.trim() || "Neues Projekt", template === "beispiel" ? "beispiel" : "leer");
-    await saveProject(p);
+    try {
+      await saveProject(p);
+    } catch (e) {
+      setCreating(false);
+      return fail(e);
+    }
     router.push(`/project/${p.id}${template === "import" ? "?import=1" : ""}`);
   };
 
-  const duplicate = async (row: ProjectRow) => {
+  const duplicate = async (row: ProjectSummary) => {
     const stamp = timestamp();
+    const data = await loadProject(row.id).catch(() => null);
+    if (!data) return setError("Das Projekt konnte nicht geladen werden.");
     const copy = {
-      ...structuredClone(row.data),
+      ...structuredClone(data),
       id: uid(),
       name: `${row.name} (Kopie)`,
       createdAt: stamp,
       updatedAt: stamp,
     };
-    await saveProject(copy);
+    await saveProject(copy).catch(fail);
     await refresh();
   };
 
@@ -112,6 +146,31 @@ export function ProjectList() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {error && <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {localCount > 0 && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accent-soft/40 p-3 text-sm">
+            <span>
+              In diesem Browser liegen {localCount} {localCount === 1 ? "Projekt" : "Projekte"}, die noch nicht in der
+              Cloud gespeichert sind.
+            </span>
+            <Button
+              variant="primary"
+              disabled={!!migrating}
+              onClick={async () => {
+                setMigrating("0");
+                try {
+                  await migrateToCloud((d, t) => setMigrating(`${d}/${t}`));
+                } catch (e) {
+                  fail(e);
+                }
+                setMigrating(null);
+                await refresh();
+              }}
+            >
+              <CloudUpload size={15} />{" "}
+              {migrating ? `Übernehme … ${migrating}` : "Lokale Projekte in die Cloud übernehmen"}
+            </Button>
+          </div>
+        )}
         {rows === null ? (
           <p className="text-muted">Lädt …</p>
         ) : rows.length === 0 ? (
@@ -143,8 +202,9 @@ export function ProjectList() {
               </Button>
             </div>
             <p className="mt-6 text-xs text-muted">
-              Alle Projekte werden lokal in diesem Browser gespeichert. Über „Export → Projektdatei“ sichern oder
-              weitergeben.
+              {cloud
+                ? "Projekte werden in der Cloud gespeichert und sind von jedem Gerät mit dem Passwort erreichbar."
+                : "Alle Projekte werden lokal in diesem Browser gespeichert. Über „Export → Projektdatei“ sichern oder weitergeben."}
             </p>
           </div>
         ) : (
@@ -166,7 +226,7 @@ export function ProjectList() {
                   <div className="px-4 pt-3">
                     <div className="font-semibold">{r.name}</div>
                     <div className="text-xs text-muted">
-                      {r.data.floors.length} {r.data.floors.length === 1 ? "Etage" : "Etagen"} · geändert{" "}
+                      {r.floors} {r.floors === 1 ? "Etage" : "Etagen"} · geändert{" "}
                       {new Date(r.updatedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}
                     </div>
                   </div>
@@ -181,7 +241,7 @@ export function ProjectList() {
                     title="Löschen"
                     onClick={async () => {
                       if (!window.confirm(`Projekt „${r.name}“ endgültig löschen?`)) return;
-                      await deleteProject(r.id);
+                      await deleteProject(r.id).catch(fail);
                       await refresh();
                     }}
                   >

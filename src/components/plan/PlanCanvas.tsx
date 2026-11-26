@@ -294,7 +294,7 @@ export function PlanCanvas() {
         if (e.type === "keydown") e.preventDefault();
         return;
       }
-      if (e.type !== "keydown") return;
+      if (e.type !== "keydown" || st.readOnly) return;
       if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) st.redo();

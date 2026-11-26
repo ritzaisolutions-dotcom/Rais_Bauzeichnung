@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page) {
@@ -118,4 +118,37 @@ test("the app and the AI routes require the password", async ({ page, request })
   await expect(page.getByTestId("new-project")).toBeVisible();
   await page.getByTitle("Abmelden").click();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test("projects API needs the password; share links are public but checked", async ({ page, request }) => {
+  expect((await request.get("/api/projects")).status()).toBe(401);
+  // without a configured cloud the list answers with local mode
+  await login(page);
+  const list = await page.request.get("/api/projects");
+  expect(await list.json()).toMatchObject({ cloud: false });
+  // share pages are reachable without login and reject unknown tokens
+  const ctx = await page.context().browser()!.newContext();
+  const anon = await ctx.newPage();
+  await anon.goto("/teilen/unbekannt123");
+  await expect(anon).toHaveURL(/\/teilen\/unbekannt123/);
+  await expect(anon.getByText(/nicht geladen werden|ungültig/)).toBeVisible();
+  await ctx.close();
+});
+
+test("shared view shows plan, 3D and areas read-only", async ({ browser }) => {
+  const project = JSON.parse(readFileSync("tests/fixtures/share-project.json", "utf8"));
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route("**/api/share/demo-token", (r) => r.fulfill({ json: { project } }));
+  await page.goto("/teilen/demo-token");
+  await expect(page.getByTestId("share-view")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Musterwohnung" })).toBeVisible();
+  await expect(page.getByTestId("share-areas")).toContainText("Wohnfläche");
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+  // no editing tools in the shared view
+  await expect(page.getByTestId("new-project")).toHaveCount(0);
+  await expect(page.getByTestId("import-button")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/share-view.png" });
+  await ctx.close();
 });

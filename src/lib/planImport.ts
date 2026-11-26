@@ -42,6 +42,18 @@ async function loadImage(file: File): Promise<LoadedPlan> {
     r.readAsDataURL(file);
   });
   const img = await loadImg(dataUrl);
+  // re-encode large photos/scans: at most 4000 px, WebP
+  const k = Math.min(1, 4000 / Math.max(img.naturalWidth, img.naturalHeight));
+  if (k < 1 || dataUrl.length > 2_500_000) {
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#fff";
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(img, 0, 0, c.width, c.height);
+    return { dataUrl: c.toDataURL("image/webp", 0.88), widthPx: c.width, heightPx: c.height, labels: [], pageCount: 1, textItems: [] };
+  }
   return { dataUrl, widthPx: img.naturalWidth, heightPx: img.naturalHeight, labels: [], pageCount: 1, textItems: [] };
 }
 
@@ -69,7 +81,8 @@ async function loadPdf(data: ArrayBuffer, pageNumber: number): Promise<LoadedPla
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-  const dataUrl = canvas.toDataURL("image/png");
+  // WebP keeps line drawings sharp at a fraction of the PNG size (cloud uploads stay small)
+  const dataUrl = canvas.toDataURL("image/webp", 0.9);
 
   const text = await page.getTextContent();
   const textItems: LoadedPlan["textItems"] = [];

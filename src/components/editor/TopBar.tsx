@@ -12,6 +12,7 @@ import {
   Palette,
   Plus,
   Redo2,
+  Share2,
   Sparkles,
   Square,
   Trash2,
@@ -36,7 +37,9 @@ import { registry } from "@/lib/registry";
 import { spritesIdle } from "../three/sprites";
 import { emptyFloor, uid } from "@/model/ops";
 import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
+import { isCloud } from "@/lib/storage";
 import { Button, IconButton } from "../ui";
+import { ShareDialog } from "./ShareDialog";
 
 function Menu({
   label,
@@ -109,6 +112,11 @@ export function TopBar({
   const canRedo = useEditor((s) => s.future.length > 0);
   const floor = useActiveFloor();
   const st = useEditor.getState();
+  const [cloud, setCloud] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  useEffect(() => {
+    isCloud().then(setCloud, () => setCloud(false));
+  }, []);
   if (!project || !floor) return null;
 
   const views: { id: ViewMode; label: string; icon: React.ReactNode }[] = [
@@ -371,6 +379,12 @@ export function TopBar({
           </>
         )}
       </Menu>
+      {cloud && (
+        <Button onClick={() => setShareOpen(true)} data-testid="share-button" title="Nur-Lese-Link für Kunden">
+          <Share2 size={15} /> <span className="hidden lg:inline">Teilen</span>
+        </Button>
+      )}
+      {cloud && <ShareDialog projectId={project.id} open={shareOpen} onClose={() => setShareOpen(false)} />}
       <Button variant={chatOpen ? "primary" : "default"} onClick={onToggleChat} data-testid="chat-toggle">
         <Sparkles size={15} /> <span className="hidden lg:inline">KI-Assistent</span>
       </Button>
