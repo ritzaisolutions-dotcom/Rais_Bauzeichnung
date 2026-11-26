@@ -40,7 +40,7 @@ export const toolSchemas = {
     y1: z.number(),
     x2: z.number(),
     y2: z.number(),
-    wall_type: z.enum(["aussen", "innen", "tragend"]).optional(),
+    wall_type: z.enum(["aussen", "innen", "tragend", "gelaender"]).optional(),
   }),
   add_rect_room: z.object({
     x: z.number(),
@@ -48,7 +48,7 @@ export const toolSchemas = {
     width: z.number().positive(),
     height: z.number().positive(),
     name: z.string().optional(),
-    wall_type: z.enum(["aussen", "innen", "tragend"]).optional(),
+    wall_type: z.enum(["aussen", "innen", "tragend", "gelaender"]).optional(),
   }),
   move_wall: z.object({ wall_id: z.string(), offset: z.number() }),
   set_wall_length: z.object({ wall_id: z.string(), length: z.number().positive() }),

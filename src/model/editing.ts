@@ -225,10 +225,13 @@ export function collidingItems(floor: Floor): Set<string> {
       }
     }
   }
+  // building parts (chimneys, columns, radiators) may sit in or on walls
+  const loose = solid.filter((it) => !it.defId.startsWith("bau-"));
   for (const f of wallFrames(floor)) {
+    if (f.wall.type === "gelaender") continue;
     for (const [s, e] of solidIntervals(f)) {
       const r = wallRect(f, s, e);
-      for (const it of solid) if (!out.has(it.id) && overlaps(poly.get(it.id)!, r)) out.add(it.id);
+      for (const it of loose) if (!out.has(it.id) && overlaps(poly.get(it.id)!, r)) out.add(it.id);
     }
   }
   return out;

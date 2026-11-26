@@ -5,6 +5,7 @@ import { Box, Columns2, Square } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { computeRoomGeometry, formatM } from "@/model/geometry";
+import { livingArea } from "@/model/woflv";
 import { ROOM_TYPE_LABELS } from "@/model/materials";
 import type { Project } from "@/model/types";
 import { useActiveFloor, useEditor, type ViewMode } from "@/store/editor";
@@ -49,7 +50,7 @@ export function ShareView({ token }: { token: string }) {
   }, [token]);
 
   const rooms = useMemo(() => (floor ? computeRoomGeometry(floor) : []), [floor]);
-  const living = rooms.reduce((s, r) => s + (r.meta.roomType === "balkon" ? r.area * 0.25 : r.area), 0);
+  const living = floor ? livingArea(floor, rooms) : 0;
 
   if (state.status === "loading")
     return <div className="flex h-screen items-center justify-center text-muted">Grundriss wird geladen …</div>;
@@ -137,7 +138,7 @@ export function ShareView({ token }: { token: string }) {
               </tr>
             </tfoot>
           </table>
-          <p className="mt-2 text-[11px] text-muted">Balkon und Terrasse zu 25 % angerechnet.</p>
+          <p className="mt-2 text-[11px] text-muted">Nach WoFlV: Balkon und Terrasse zu 25 %, Dachschrägen anteilig.</p>
         </aside>
       </div>
     </div>

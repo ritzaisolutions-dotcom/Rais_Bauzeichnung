@@ -10,9 +10,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { findDef } from "@/furniture/catalog";
-import { computeRoomGeometry, floorBounds } from "@/model/geometry";
+import { add, computeRoomGeometry, floorBounds, lineInPolygon, mul } from "@/model/geometry";
 import type { Floor, FurnitureDef, RoomGeometry } from "@/model/types";
-import { solidIntervals, wallFrames, type WallFrame } from "@/model/walls";
+import { pointAlong, solidIntervals, wallFrames, type WallFrame } from "@/model/walls";
+import { slopeSides } from "@/model/woflv";
 import { registry } from "@/lib/registry";
 import { useActiveFloor, useEditor, useFurnitureDefs } from "@/store/editor";
 import { FurnitureModel } from "./FurnitureModel";
@@ -29,6 +30,12 @@ const GLASS_MAT = new THREE.MeshPhysicalMaterial({
   roughness: 0.05,
 });
 const FRAME_MAT = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 });
+const DOOR_MAT = new THREE.MeshStandardMaterial({ color: "#f6f4ef", roughness: 0.45 });
+const HANDLE_MAT = new THREE.MeshStandardMaterial({ color: "#c9ccd0", roughness: 0.2, metalness: 1 });
+const RAIL_MAT = new THREE.MeshStandardMaterial({ color: "#3a3a3a", roughness: 0.4, metalness: 0.6 });
+const SLOPE_MAT = new THREE.MeshStandardMaterial({ color: "#efebe4", roughness: 0.95, side: THREE.DoubleSide });
+/** How far hinged doors stand open in 3D. */
+const DOOR_OPEN = (70 * Math.PI) / 180;
 const SELECT_MAT = new THREE.LineBasicMaterial({ color: "#2563eb" });
 
 function WallBox({
@@ -40,6 +47,7 @@ function WallBox({
   cut,
   material = WALL_MAT,
   thickness,
+  offset = 0,
 }: {
   f: WallFrame;
   s: number;
@@ -49,12 +57,14 @@ function WallBox({
   cut: number;
   material?: THREE.Material;
   thickness?: number;
+  /** Shift off the wall axis along the normal (meters). */
+  offset?: number;
 }) {
   const top = Math.min(y1, cut);
   if (top <= y0 + 1e-4 || e - s < 1e-4) return null;
   const mid = (s + e) / 2;
-  const x = f.a.x + f.dir.x * mid;
-  const z = f.a.y + f.dir.y * mid;
+  const x = f.a.x + f.dir.x * mid + f.normal.x * offset;
+  const z = f.a.y + f.dir.y * mid + f.normal.y * offset;
   const rot = -Math.atan2(f.dir.y, f.dir.x);
   const t = thickness ?? f.wall.thickness;
   const cutTop = y1 > cut;
@@ -72,12 +82,195 @@ function WallBox({
   );
 }
 
-function Walls({ floor, cut }: { floor: Floor; cut: number }) {
+/** A box standing on a plan point, turned along a plan direction (door leaves). */
+function Slab({
+  center,
+  dir,
+  length,
+  thickness,
+  y0,
+  y1,
+  material,
+}: {
+  center: { x: number; y: number };
+  dir: { x: number; y: number };
+  length: number;
+  thickness: number;
+  y0: number;
+  y1: number;
+  material: THREE.Material;
+}) {
+  return (
+    <mesh
+      position={[center.x, (y0 + y1) / 2, center.y]}
+      rotation={[0, -Math.atan2(dir.y, dir.x), 0]}
+      material={material}
+      castShadow
+      receiveShadow
+    >
+      <boxGeometry args={[length, y1 - y0, thickness]} />
+    </mesh>
+  );
+}
+
+function Door({ f, o, cut }: { f: WallFrame; o: WallFrame["openings"][number]; cut: number }) {
+  const t = f.wall.thickness;
+  const s = o.offset - o.width / 2;
+  const e = o.offset + o.width / 2;
+  const top = Math.min(f.wall.height, o.sill + o.height);
+  const jamb = 0.03;
+  const side = o.flipSide ? -1 : 1;
+  const leafTop = Math.min(top - 0.01, cut);
+  const frame = (
+    <>
+      <WallBox f={f} s={s} e={s + jamb} y0={0} y1={top} cut={cut} material={FRAME_MAT} thickness={t + 0.02} />
+      <WallBox f={f} s={e - jamb} e={e} y0={0} y1={top} cut={cut} material={FRAME_MAT} thickness={t + 0.02} />
+      <WallBox f={f} s={s} e={e} y0={top - jamb} y1={top} cut={cut} material={FRAME_MAT} thickness={t + 0.02} />
+    </>
+  );
+  if (leafTop <= 0.05) return frame;
+  if (o.kind === "schiebetuer") {
+    // leaf in front of the wall, half open
+    const shift = o.width * 0.45 * (o.flipHinge ? -1 : 1);
+    return (
+      <>
+        {frame}
+        <WallBox
+          f={f}
+          s={s + shift}
+          e={e + shift}
+          y0={0.005}
+          y1={leafTop}
+          cut={cut}
+          material={DOOR_MAT}
+          thickness={0.04}
+          offset={side * (t / 2 + 0.03)}
+        />
+      </>
+    );
+  }
+  const hingeS = o.flipHinge ? e - jamb : s + jamb;
+  const hinge = pointAlong(f, hingeS, (side * t) / 2 - side * 0.02);
+  const closed = mul(f.dir, o.flipHinge ? -1 : 1);
+  const leafDir = add(mul(closed, Math.cos(DOOR_OPEN)), mul(f.normal, side * Math.sin(DOOR_OPEN)));
+  const len = o.width - 2 * jamb - 0.01;
+  const center = add(hinge, mul(leafDir, len / 2));
+  const knob = add(hinge, mul(leafDir, len - 0.07));
+  const knobN = { x: -leafDir.y, y: leafDir.x };
+  return (
+    <>
+      {frame}
+      <Slab center={center} dir={leafDir} length={len} thickness={0.04} y0={0.01} y1={leafTop} material={DOOR_MAT} />
+      {leafTop > 1.05 &&
+        [1, -1].map((k) => (
+          <Slab
+            key={k}
+            center={add(knob, mul(knobN, k * 0.035))}
+            dir={leafDir}
+            length={0.12}
+            thickness={0.02}
+            y0={1.03}
+            y1={1.05}
+            material={HANDLE_MAT}
+          />
+        ))}
+    </>
+  );
+}
+
+/** Glass balustrade with a top rail and posts. */
+function Railing({ f, cut }: { f: WallFrame; cut: number }) {
+  const H = f.wall.height;
+  return (
+    <>
+      {solidIntervals(f).map(([s, e], i) => {
+        const posts = Math.max(2, Math.ceil((e - s) / 1.2) + 1);
+        return (
+          <group key={i}>
+            <WallBox f={f} s={s} e={e} y0={0.06} y1={H - 0.05} cut={cut} material={GLASS_MAT} thickness={0.016} />
+            <WallBox f={f} s={s} e={e} y0={H - 0.05} y1={H} cut={cut} material={RAIL_MAT} thickness={0.05} />
+            {Array.from({ length: posts }, (_, k) => {
+              const p = s + ((e - s) * k) / (posts - 1);
+              const a = Math.max(s, p - 0.02);
+              const b = Math.min(e, p + 0.02);
+              return <WallBox key={k} f={f} s={a} e={b} y0={0} y1={H} cut={cut} material={RAIL_MAT} thickness={0.04} />;
+            })}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+/** Ceiling panel rising from the knee wall into the room. */
+function SlopePanel({
+  p0,
+  p1,
+  n,
+  knee,
+  rise,
+  top,
+}: {
+  p0: { x: number; y: number };
+  p1: { x: number; y: number };
+  n: { x: number; y: number };
+  knee: number;
+  rise: number;
+  top: number;
+}) {
+  const geometry = useMemo(() => {
+    const depth = (top - knee) / rise;
+    const q0 = add(p0, mul(n, depth));
+    const q1 = add(p1, mul(n, depth));
+    const g = new THREE.BufferGeometry();
+    g.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(
+        [p0.x, knee, p0.y, p1.x, knee, p1.y, q1.x, top, q1.y, p0.x, knee, p0.y, q1.x, top, q1.y, q0.x, top, q0.y],
+        3,
+      ),
+    );
+    g.computeVertexNormals();
+    return g;
+  }, [p0, p1, n, knee, rise, top]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh geometry={geometry} material={SLOPE_MAT} castShadow receiveShadow />;
+}
+
+function Walls({ floor, cut, rooms }: { floor: Floor; cut: number; rooms: RoomGeometry[] }) {
   const frames = useMemo(() => wallFrames(floor), [floor]);
+  const slopes = useMemo(
+    () =>
+      rooms.flatMap((r) =>
+        slopeSides(floor, r).map((sd) => {
+          const span = lineInPolygon(sd.face, sd.frame.dir, r.inner);
+          return span ? { key: `${r.meta.id}-${sd.frame.wall.id}`, sd, span } : null;
+        }),
+      ),
+    [floor, rooms],
+  );
   return (
     <group>
+      {slopes.map((x) => {
+        if (!x) return null;
+        const top = Math.min(floor.height, cut);
+        if (top <= x.sd.knee + 0.01) return null;
+        return (
+          <SlopePanel
+            key={x.key}
+            p0={x.span[0]}
+            p1={x.span[1]}
+            n={x.sd.n}
+            knee={x.sd.knee}
+            rise={x.sd.rise}
+            top={top}
+          />
+        );
+      })}
       {frames.map((f) => {
-        const H = f.wall.height;
+        if (f.wall.type === "gelaender") return <Railing key={f.wall.id} f={f} cut={cut} />;
+        // under a roof slope the wall is only as high as the knee wall
+        const H = f.wall.slope ? Math.min(f.wall.height, f.wall.slope.knee) : f.wall.height;
         return (
           <group key={f.wall.id}>
             {solidIntervals(f).map(([s, e], i) => (
@@ -88,10 +281,12 @@ function Walls({ floor, cut }: { floor: Floor; cut: number }) {
               const e = o.offset + o.width / 2;
               const top = Math.min(H, o.sill + o.height);
               const isWindow = o.kind === "fenster" || o.kind === "bodenfenster";
+              const isDoor = o.kind === "tuer" || o.kind === "schiebetuer";
               return (
                 <group key={o.id}>
                   {o.sill > 0 && <WallBox f={f} s={s} e={e} y0={0} y1={o.sill} cut={cut} />}
                   {top < H && <WallBox f={f} s={s} e={e} y0={top} y1={H} cut={cut} />}
+                  {isDoor && <Door f={f} o={o} cut={cut} />}
                   {isWindow && (
                     <>
                       <WallBox f={f} s={s} e={e} y0={o.sill} y1={top} cut={cut} material={GLASS_MAT} thickness={0.02} />
@@ -410,7 +605,7 @@ function SceneContent({ mode, cut }: { mode: CamMode; cut: number }) {
         {rooms.map((r) => (
           <RoomFloor key={r.meta.id} room={r} />
         ))}
-        <Walls floor={floor} cut={mode === "top" ? cut : 99} />
+        <Walls floor={floor} cut={mode === "top" ? cut : 99} rooms={rooms} />
         <Items floor={floor} defs={defs} onItemDown={onItemDown} selected={selected} />
       </group>
       <DragController dragId={dragId} onEnd={() => setDragId(null)} />

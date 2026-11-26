@@ -2,6 +2,7 @@
 
 import { computeRoomGeometry, floorBounds, formatM } from "@/model/geometry";
 import { ROOM_TYPE_LABELS } from "@/model/materials";
+import { livingArea, roomAreas } from "@/model/woflv";
 import type { Floor, Project } from "@/model/types";
 import { registry } from "./registry";
 
@@ -89,18 +90,19 @@ export function printPlan(pngUrl: string, title: string) {
 
 export function areaCsv(floor: Floor) {
   const rooms = computeRoomGeometry(floor);
-  const rows = [["Raum", "Raumtyp", "Fläche m²", "Soll laut Plan m²", "Umfang m"]];
+  const rows = [["Raum", "Raumtyp", "Grundfläche m²", "Wohnfläche WoFlV m²", "Soll laut Plan m²", "Umfang m"]];
   for (const r of rooms) {
     rows.push([
       r.meta.name,
       ROOM_TYPE_LABELS[r.meta.roomType ?? "sonstiges"],
       formatM(r.area),
+      formatM(roomAreas(floor, r).counted),
       r.meta.targetArea !== undefined ? formatM(r.meta.targetArea) : "",
       formatM(r.perimeter),
     ]);
   }
-  const living = rooms.reduce((s, r) => s + (r.meta.roomType === "balkon" ? r.area * 0.25 : r.area), 0);
-  rows.push(["Wohnfläche (Balkon/Terrasse 25 %)", "", formatM(living), "", ""]);
+  const total = rooms.reduce((s, r) => s + r.area, 0);
+  rows.push(["Summe", "", formatM(total), formatM(livingArea(floor, rooms)), "", ""]);
   return "﻿" + rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
 }
 

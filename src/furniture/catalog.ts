@@ -774,6 +774,79 @@ const MODEL_PIECES: FurnitureDef[] = [
   }),
 ];
 
+// ------------------------------------------------------------------ Bauteile
+// Fixed building parts. Ids start with "bau-" (they may sit inside walls).
+
+const plaster = "#e9e5de";
+
+/** Straight solid stair, rising from the front (+y) to the back. */
+function stairStraight(id: string, name: string, steps: number): FurnitureDef {
+  const W = 1.0;
+  const tread = 0.26;
+  const D = steps * tread;
+  const H = 2.75;
+  const rise = H / steps;
+  return piece(id, name, "bau", W, D, H, (b) => {
+    for (let i = 0; i < steps; i++) {
+      const y1 = D - i * tread;
+      b.box(0, W, y1 - tread, y1, 0, (i + 1) * rise, i % 2 ? "#d8d2c8" : "#ddd7cd", { finish: "stein" });
+    }
+  });
+}
+
+/** Quarter-turn stair: first flight towards the back, landing, second flight to the right. */
+const stairL = piece("bau-treppe-l", "Treppe viertelgewendelt", "bau", 2.56, 3.08, 2.75, (b) => {
+  const run = 1.0;
+  const tread = 0.26;
+  const rise = 2.75 / 15;
+  for (let i = 0; i < 8; i++) {
+    const y1 = 3.08 - i * tread;
+    b.box(0, run, y1 - tread, y1, 0, (i + 1) * rise, i % 2 ? "#d8d2c8" : "#ddd7cd", { finish: "stein" });
+  }
+  b.box(0, run, 0, run, 0, 9 * rise, "#d4cec4", { finish: "stein" });
+  for (let i = 0; i < 6; i++) {
+    const x0 = run + i * tread;
+    b.box(x0, x0 + tread, 0, run, 0, (10 + i) * rise, i % 2 ? "#d8d2c8" : "#ddd7cd", { finish: "stein" });
+  }
+});
+
+const column = piece("bau-stuetze", "Stütze 30×30", "bau", 0.3, 0.3, 2.6, (b) =>
+  b.box(0, 0.3, 0, 0.3, 0, 2.6, plaster, { finish: "matt" }),
+);
+const roundColumn = piece("bau-stuetze-rund", "Stütze rund", "bau", 0.3, 0.3, 2.6, (b) =>
+  b.cyl(0.15, 0.15, 0.3, 0, 2.6, plaster, { finish: "matt" }),
+);
+const chimney = piece("bau-schornstein", "Schornstein", "bau", 0.45, 0.45, 2.6, (b) => {
+  b.box(0, 0.45, 0, 0.45, 0, 2.6, "#dcd6cc", { finish: "matt" });
+  b.cyl(0.225, 0.225, 0.2, 2.6, 2.6001, "#3a3836", { plan: true });
+});
+/** Panel radiator under a window, 15 cm above the floor. */
+const radiator = piece(
+  "bau-heizkoerper",
+  "Heizkörper",
+  "bau",
+  1.0,
+  0.1,
+  0.6,
+  (b) => {
+    for (let i = 0; i < 20; i++) {
+      const x = 0.02 + i * 0.048;
+      b.box(x, x + 0.04, 0.02, 0.09, 0, 0.6, "#f4f3f0", { finish: "lack", round: 0.3 });
+    }
+    b.box(0, 1.0, 0.03, 0.08, 0.56, 0.6, "#f4f3f0", { finish: "lack", plan: false });
+  },
+  { elevation: 0.15 },
+);
+
+const BUILDING_PARTS = [
+  stairStraight("bau-treppe", "Treppe gerade (15 Stufen)", 15),
+  stairL,
+  column,
+  roundColumn,
+  chimney,
+  radiator,
+];
+
 export const CATALOG: FurnitureDef[] = [
   // Wohnen
   sofa("sofa-2", "Sofa 2-Sitzer", 1.8, 2, C.sage, C.offwhite),
@@ -827,6 +900,8 @@ export const CATALOG: FurnitureDef[] = [
   lounge,
   // Echte 3D-Modelle
   ...MODEL_PIECES,
+  // Bauteile
+  ...BUILDING_PARTS,
 ];
 
 export const CATEGORY_LABELS: Record<FurnitureCategory, string> = {
@@ -838,6 +913,7 @@ export const CATEGORY_LABELS: Record<FurnitureCategory, string> = {
   arbeiten: "Arbeiten",
   deko: "Deko & Licht",
   aussen: "Außen",
+  bau: "Bauteile",
   eigene: "Eigene Möbel",
 };
 

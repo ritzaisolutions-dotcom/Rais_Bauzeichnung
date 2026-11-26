@@ -100,7 +100,7 @@ export function executeTool(name: string, rawInput: unknown): { ok: boolean; res
         })),
       );
     case "add_wall": {
-      const i = input as { x1: number; y1: number; x2: number; y2: number; wall_type?: "aussen" | "innen" | "tragend" };
+      const i = input as { x1: number; y1: number; x2: number; y2: number; wall_type?: "aussen" | "innen" | "tragend" | "gelaender" };
       let ids: string[] = [];
       mutate((f) => {
         ids = addWall(f, { x: i.x1, y: i.y1 }, { x: i.x2, y: i.y2 }, { type: i.wall_type ?? "innen" });
@@ -114,7 +114,7 @@ export function executeTool(name: string, rawInput: unknown): { ok: boolean; res
         width: number;
         height: number;
         name?: string;
-        wall_type?: "aussen" | "innen" | "tragend";
+        wall_type?: "aussen" | "innen" | "tragend" | "gelaender";
       };
       mutate((f) => {
         addRectRoom(f, i.x, i.y, i.width, i.height, {

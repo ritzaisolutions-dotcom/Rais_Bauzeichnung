@@ -1,9 +1,10 @@
 import { memo, useMemo } from "react";
 import { findDef } from "@/furniture/catalog";
-import { add, cross, dist, formatArea, formatM, mul, norm, perp, sub } from "@/model/geometry";
+import { add, cross, dist, formatArea, formatM, lineInPolygon, mul, norm, perp, sub } from "@/model/geometry";
 import { FLOOR_MATERIALS } from "@/model/materials";
 import type { Dimension, Floor, FloorMaterial, FurnitureDef, Opening, RoomGeometry, Vec2 } from "@/model/types";
 import { pointAlong, solidIntervals, wallFrames, wallRect, type WallFrame } from "@/model/walls";
+import { slopeSides } from "@/model/woflv";
 import { FurnitureGraphic } from "./FurnitureSymbol";
 
 export interface PlanLayersProps {
@@ -190,6 +191,7 @@ function OpeningSymbol({ f, o, px, selected }: { f: WallFrame; o: Opening; px: n
 }
 
 const seg = (a: Vec2, b: Vec2) => ({ x1: a.x, y1: a.y, x2: b.x, y2: b.y });
+
 const shift = (poly: Vec2[], n: Vec2, d: number) => poly.map((p) => add(p, mul(n, d)));
 
 export function DimensionLine({
@@ -310,17 +312,67 @@ export const PlanLayers = memo(function PlanLayers({
           const sel = selectedIds.has(f.wall.id);
           return (
             <g key={f.wall.id} data-kind="wall" data-id={f.wall.id} style={{ cursor: "pointer" }}>
-              {solidIntervals(f).map(([s, e], i) => (
-                <polygon
-                  key={i}
-                  points={pts(wallRect(f, s, e))}
-                  fill={sel ? "#3b6fd8" : f.wall.type === "innen" && !presentation ? "#55524d" : wallColor}
-                />
-              ))}
+              {f.wall.type === "gelaender"
+                ? solidIntervals(f).map(([s, e], i) => (
+                    <g key={i}>
+                      <polygon
+                        points={pts(wallRect(f, s, e))}
+                        fill={sel ? "#bcd0f5" : "#fff"}
+                        stroke={sel ? "#3b6fd8" : wallColor}
+                        strokeWidth={1}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                      <line
+                        {...seg(pointAlong(f, s), pointAlong(f, e))}
+                        stroke={sel ? "#3b6fd8" : wallColor}
+                        strokeWidth={0.6}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </g>
+                  ))
+                : solidIntervals(f).map(([s, e], i) => (
+                    <polygon
+                      key={i}
+                      points={pts(wallRect(f, s, e))}
+                      fill={sel ? "#3b6fd8" : f.wall.type === "innen" && !presentation ? "#55524d" : wallColor}
+                    />
+                  ))}
             </g>
           );
         })}
       </g>
+
+      {/* roof slopes: clear height 1 m and 2 m */}
+      {rooms.map((r) =>
+        slopeSides(floor, r).flatMap((sd) =>
+          [1, 2].map((c) => {
+            if (c <= sd.knee || c >= floor.height) return null;
+            const o = add(sd.face, mul(sd.n, (c - sd.knee) / sd.rise));
+            const span = lineInPolygon(o, sd.frame.dir, r.inner);
+            if (!span) return null;
+            return (
+              <g key={`${r.meta.id}-${sd.frame.wall.id}-${c}`} style={{ pointerEvents: "none" }}>
+                <line
+                  {...seg(span[0], span[1])}
+                  stroke="#6b6660"
+                  strokeWidth={0.8}
+                  strokeDasharray={c === 1 ? "2 3" : "8 4"}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={span[0].x + sd.frame.dir.x * 0.15 + sd.n.x * 0.12}
+                  y={span[0].y + sd.frame.dir.y * 0.15 + sd.n.y * 0.12}
+                  fontSize={11 / px}
+                  fill="#6b6660"
+                  dominantBaseline="middle"
+                >
+                  {c},00 m
+                </text>
+              </g>
+            );
+          }),
+        ),
+      )}
 
       {/* openings */}
       {frames.map((f) =>

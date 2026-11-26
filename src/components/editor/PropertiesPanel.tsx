@@ -5,7 +5,17 @@ import { useMemo, useState } from "react";
 import { COLOR_SWATCHES, findDef } from "@/furniture/catalog";
 import { computeRoomGeometry, formatArea, formatM, wallEnds, wallLength } from "@/model/geometry";
 import { defaultMaterialFor, FLOOR_MATERIALS, ROOM_TYPE_LABELS, STYLES, type StagingStyle } from "@/model/materials";
-import { clampOpenings, DEFAULT_WALL, deleteWall, OPENING_DEFAULTS, setWallLength, splitWall, uid } from "@/model/ops";
+import {
+  clampOpenings,
+  DEFAULT_WALL,
+  deleteWall,
+  OPENING_DEFAULTS,
+  RAILING_HEIGHT,
+  setWallLength,
+  splitWall,
+  uid,
+} from "@/model/ops";
+import { livingArea, roomAreas } from "@/model/woflv";
 import { doorClearances, itemsInRoom, stageRoom } from "@/model/staging";
 import type { FloorMaterial, FurnitureItem, Opening, OpeningKind, RoomMeta, RoomType, WallType } from "@/model/types";
 import { useActiveFloor, useEditor, useFurnitureDefs } from "@/store/editor";
@@ -23,6 +33,7 @@ const WALL_LABELS: Record<WallType, string> = {
   aussen: "Außenwand",
   tragend: "Tragende Innenwand",
   innen: "Innenwand",
+  gelaender: "Geländer / Brüstung",
 };
 
 const materialOptions = (Object.keys(FLOOR_MATERIALS) as FloorMaterial[]).map((k) => ({
@@ -117,6 +128,8 @@ export function PropertiesPanel() {
                   const x = f.walls.find((y) => y.id === w.id)!;
                   x.type = v;
                   x.thickness = DEFAULT_WALL[v];
+                  if (v === "gelaender") x.height = RAILING_HEIGHT;
+                  else if (x.height === RAILING_HEIGHT) x.height = f.height;
                 })
               }
               options={(Object.keys(WALL_LABELS) as WallType[]).map((k) => ({ value: k, label: WALL_LABELS[k] }))}
@@ -155,6 +168,70 @@ export function PropertiesPanel() {
               />
             </Field>
           </div>
+          {w.type !== "gelaender" && (
+            <div className="rounded-md border border-line p-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!w.slope}
+                  data-testid="wall-slope"
+                  onChange={(e) =>
+                    mutate(
+                      (f) => {
+                        const x = f.walls.find((y) => y.id === w.id)!;
+                        x.slope = e.target.checked ? { knee: 1.0, angle: 45 } : undefined;
+                      },
+                      { normalize: false },
+                    )
+                  }
+                  className="accent-[var(--color-accent)]"
+                />
+                Dachschräge über dieser Wand
+              </label>
+              {w.slope && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Field label="Kniestock">
+                    <NumberInput
+                      value={w.slope.knee}
+                      suffix="m"
+                      min={0}
+                      max={3}
+                      onCommit={(v) =>
+                        mutate(
+                          (f) => {
+                            f.walls.find((y) => y.id === w.id)!.slope!.knee = v;
+                          },
+                          { normalize: false },
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field label="Dachneigung">
+                    <NumberInput
+                      value={w.slope.angle}
+                      digits={0}
+                      step={1}
+                      suffix="°"
+                      min={5}
+                      max={75}
+                      onCommit={(v) =>
+                        mutate(
+                          (f) => {
+                            f.walls.find((y) => y.id === w.id)!.slope!.angle = v;
+                          },
+                          { normalize: false },
+                        )
+                      }
+                    />
+                  </Field>
+                  <p className="col-span-2 text-[11px] text-muted">
+                    Die Decke steigt ab Kniestock bis zur Raumhöhe. Flächen unter 1 m zählen nicht, zwischen 1 und 2 m
+                    zur Hälfte (WoFlV).
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <p className="text-xs text-muted">
             Wand ziehen verschiebt sie parallel, Endpunkte ziehen ändert die Länge. Doppelklick teilt die Wand.
           </p>
@@ -383,6 +460,23 @@ export function PropertiesPanel() {
               <div className="text-[11px] text-muted">Umfang</div>
               <div className="font-semibold">{formatM(r.perimeter)} m</div>
             </div>
+            {(() => {
+              const a = roomAreas(floor, r);
+              if (!a.sloped && r.meta.roomType !== "balkon") return null;
+              return (
+                <div className="col-span-2 border-t border-line pt-1.5" data-testid="woflv">
+                  <div className="text-[11px] text-muted">Wohnfläche nach WoFlV</div>
+                  <div className="font-semibold">{formatArea(a.counted)}</div>
+                  {a.sloped && (
+                    <div className="mt-1 grid grid-cols-3 gap-1 text-[11px] text-muted">
+                      <span>≥ 2 m: {formatM(a.full)}</span>
+                      <span>1–2 m: {formatM(a.half)}</span>
+                      <span>&lt; 1 m: {formatM(a.none)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           <Field label="Fläche laut Plan (Soll)" hint="Zum Abgleich mit der Bauzeichnung. Leer lassen, wenn unbekannt.">
             <NumberInput
@@ -655,7 +749,7 @@ export function PropertiesPanel() {
   }
 
   // nothing selected: floor overview
-  const living = rooms.reduce((s, r) => s + (r.meta.roomType === "balkon" ? r.area * 0.25 : r.area), 0);
+  const living = livingArea(floor, rooms);
   const total = rooms.reduce((s, r) => s + r.area, 0);
   return (
     <>
@@ -680,7 +774,7 @@ export function PropertiesPanel() {
               mutate(
                 (f) => {
                   f.height = v;
-                  for (const w of f.walls) w.height = v;
+                  for (const w of f.walls) if (w.type !== "gelaender") w.height = v;
                 },
                 { normalize: false },
               )
@@ -745,7 +839,10 @@ export function PropertiesPanel() {
             </tbody>
           </table>
         )}
-        <p className="text-[11px] text-muted">Balkone/Terrassen zu 25 % (WoFlV). Rechte Spalte: Soll laut Plan.</p>
+        <p className="text-[11px] text-muted">
+          Wohnfläche nach WoFlV: Balkone/Terrassen zu 25 %, unter Dachschrägen 1–2 m zur Hälfte, unter 1 m nicht. Rechte
+          Spalte: Soll laut Plan.
+        </p>
       </Section>
       <Section title="Ganze Etage einrichten">
         <Field label="Stil">

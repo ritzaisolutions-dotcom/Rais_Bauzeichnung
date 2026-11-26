@@ -41,7 +41,7 @@ const TOOL: Anthropic.Beta.BetaTool = {
             x2: { type: "number" },
             y2: { type: "number" },
             thickness_px: { type: "number", description: "Wanddicke in Pixeln" },
-            type: { type: "string", enum: ["aussen", "innen", "tragend"] },
+            type: { type: "string", enum: ["aussen", "innen", "tragend", "gelaender"] },
           },
         },
       },
@@ -95,7 +95,7 @@ Regeln:
 - Jede Wand als gerades Segment entlang ihrer Mittellinie. Wände laufen durch Tür- und Fensteröffnungen durch; die Öffnungen geben Sie separat an.
 - Wände, die sich treffen, müssen exakt gemeinsame Endpunkte haben (gleiche Koordinaten). T-Stöße enden auf der Achse der anderen Wand.
 - Waagerechte und senkrechte Wände exakt achsparallel angeben.
-- Außenwände sind die dicken Wände der Gebäudehülle, tragende Innenwände mittel, leichte Trennwände dünn.
+- Außenwände sind die dicken Wände der Gebäudehülle, tragende Innenwände mittel, leichte Trennwände dünn. Brüstungen und Geländer von Balkon, Loggia oder Terrasse haben den Typ "gelaender".
 - Türen erkennen Sie am Öffnungsbogen, Fenster an der dünnen Doppellinie (oft farbig) in der Außenwand.
 - Räume: Name und Fläche aus der Beschriftung übernehmen. Balkon/Loggia/Terrasse ebenfalls als Raum mit eigenen Begrenzungswänden, wenn sie gezeichnet sind.
 

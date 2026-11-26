@@ -9,7 +9,7 @@ export const planSchema = z.object({
       x2: z.number(),
       y2: z.number(),
       thickness_px: z.number(),
-      type: z.enum(["aussen", "innen", "tragend"]),
+      type: z.enum(["aussen", "innen", "tragend", "gelaender"]),
     }),
   ),
   openings: z.array(

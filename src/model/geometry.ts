@@ -360,3 +360,22 @@ export function formatM(v: number, digits = 2) {
 export function formatArea(v: number) {
   return `${formatM(v, 2)} m²`;
 }
+
+/** The part of the line through o (direction d) between its first and last crossing with the polygon. */
+export function lineInPolygon(o: Vec2, d: Vec2, poly: Vec2[]): [Vec2, Vec2] | null {
+  const ts: number[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const e = sub(poly[(i + 1) % poly.length], a);
+    const den = cross(d, e);
+    if (Math.abs(den) < 1e-12) continue;
+    const w = sub(a, o);
+    const t = cross(w, e) / den;
+    const u = cross(w, d) / den;
+    if (u >= -1e-9 && u <= 1 + 1e-9) ts.push(t);
+  }
+  if (ts.length < 2) return null;
+  const t0 = Math.min(...ts);
+  const t1 = Math.max(...ts);
+  return [add(o, mul(d, t0)), add(o, mul(d, t1))];
+}

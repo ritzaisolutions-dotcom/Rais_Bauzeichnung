@@ -290,3 +290,19 @@ test("custom furniture from an uploaded GLB model", async ({ page }) => {
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.getByText("ceramic_vase_01").first()).toBeVisible();
 });
+
+test("a roof slope reduces the living area (WoFlV)", async ({ page }) => {
+  await newProject(page, "Beispielwohnung", "Dachgeschoss");
+  const living = page.locator("tr", { hasText: "Wohnfläche" }).locator("td").nth(1);
+  const before = await living.innerText();
+  // the outer walls come first; one of them borders living rooms
+  const wall = page.locator('[data-kind="wall"]').first();
+  const b = (await wall.boundingBox())!;
+  // near the end of the wall, away from its window
+  await wall.click({ position: b.width > b.height ? { x: 30, y: b.height / 2 } : { x: b.width / 2, y: 30 } });
+  await page.getByTestId("wall-slope").check();
+  const canvas = (await page.getByTestId("plan-canvas").boundingBox())!;
+  await page.mouse.click(canvas.x + 8, canvas.y + 8);
+  await expect(living).not.toHaveText(before);
+  await expect(page.getByTestId("plan-canvas")).toContainText("2,00 m");
+});

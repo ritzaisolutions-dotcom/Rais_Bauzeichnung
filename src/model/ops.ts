@@ -21,9 +21,12 @@ export const DEFAULT_WALL = {
   aussen: 0.36,
   innen: 0.115,
   tragend: 0.24,
+  gelaender: 0.05,
 } satisfies Record<WallType, number>;
 
 export const NODE_SNAP = 0.02;
+/** Default height of a balcony railing / parapet. */
+export const RAILING_HEIGHT = 1.0;
 
 export function emptyFloor(name = "Erdgeschoss"): Floor {
   return {
@@ -119,7 +122,7 @@ export function addWall(floor: Floor, p1: Vec2, p2: Vec2, opts: WallOptions = {}
   if (dist(p1, p2) < NODE_SNAP * 2) return [];
   const type = opts.type ?? "innen";
   const thickness = opts.thickness ?? DEFAULT_WALL[type];
-  const height = opts.height ?? floor.height;
+  const height = opts.height ?? (type === "gelaender" ? RAILING_HEIGHT : floor.height);
 
   const n1 = nodeAt(floor, p1);
   const n2 = nodeAt(floor, p2);

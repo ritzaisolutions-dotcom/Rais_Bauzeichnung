@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { findDef } from "@/furniture/catalog";
 import { normalizeFloor } from "@/model/ops";
-import type { Floor, FurnitureDef, Project } from "@/model/types";
+import type { Floor, FurnitureDef, Project, WallType } from "@/model/types";
 
 setAutoFreeze(false);
 
@@ -54,7 +54,7 @@ interface EditorState {
   globalFurniture: FurnitureDef[];
   /** Pending furniture to place by click (from the library). */
   placing: string | null;
-  wallType: "aussen" | "innen" | "tragend";
+  wallType: WallType;
   wallThickness: number;
   revision: number;
   toast: string | null;

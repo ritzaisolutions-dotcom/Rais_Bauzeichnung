@@ -3,7 +3,7 @@
 
 export type Vec2 = { x: number; y: number };
 
-export type WallType = "aussen" | "innen" | "tragend";
+export type WallType = "aussen" | "innen" | "tragend" | "gelaender";
 
 export interface WallNode {
   id: string;
@@ -18,6 +18,18 @@ export interface Wall {
   thickness: number;
   height: number;
   type: WallType;
+  /**
+   * Roof slope above this wall (attic): the ceiling starts at the knee height on the
+   * wall's inner face and rises at the given angle into the adjoining rooms.
+   */
+  slope?: RoofSlope;
+}
+
+export interface RoofSlope {
+  /** Height of the knee wall in meters. */
+  knee: number;
+  /** Roof pitch in degrees. */
+  angle: number;
 }
 
 export type OpeningKind = "tuer" | "fenster" | "schiebetuer" | "durchgang" | "bodenfenster";
@@ -217,7 +229,7 @@ export interface FurnitureModelRef {
 }
 
 export type FurnitureCategory =
-  "wohnen" | "schlafen" | "essen" | "kueche" | "bad" | "arbeiten" | "deko" | "aussen" | "eigene";
+  "wohnen" | "schlafen" | "essen" | "kueche" | "bad" | "arbeiten" | "deko" | "aussen" | "bau" | "eigene";
 
 export interface FurnitureDef {
   id: string;

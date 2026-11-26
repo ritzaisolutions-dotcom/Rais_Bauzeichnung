@@ -41,6 +41,7 @@ const WALL_TYPES = [
   { id: "aussen" as const, label: "Außenwand" },
   { id: "tragend" as const, label: "Tragend" },
   { id: "innen" as const, label: "Innenwand" },
+  { id: "gelaender" as const, label: "Geländer" },
 ];
 
 const LAYERS: { id: keyof LayerState; label: string }[] = [
