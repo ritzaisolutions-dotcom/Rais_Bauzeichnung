@@ -81,6 +81,7 @@ export interface RoomMeta {
 
 export type RoomType =
   | "wohnen"
+  | "wohnkueche"
   | "schlafen"
   | "kind"
   | "bad"

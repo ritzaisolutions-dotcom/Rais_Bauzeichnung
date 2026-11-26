@@ -14,7 +14,7 @@ import {
   uid,
 } from "@/model/ops";
 import { nameRoomAt } from "@/model/project";
-import { doorClearances, itemsInRoom, stageRoom } from "@/model/staging";
+import { doorClearances, itemsInRoom, kitchenHostRoom, stageRoom } from "@/model/staging";
 import type { Floor } from "@/model/types";
 import { useEditor } from "@/store/editor";
 import { toolSchemas, type ToolName } from "./tools";
@@ -243,7 +243,8 @@ export function executeTool(name: string, rawInput: unknown): { ok: boolean; res
           const ids = new Set(itemsInRoom(room, f.items).map((x) => x.id));
           f.items = f.items.filter((x) => !ids.has(x.id));
         }
-        const added = stageRoom(room, f.items, i.style ?? "warm", custom, doorClearances(f));
+        const addKitchen = kitchenHostRoom(computeRoomGeometry(f)) === room.meta.id;
+        const added = stageRoom(room, f.items, i.style ?? "warm", custom, doorClearances(f), { addKitchen });
         count = added.length;
         f.items.push(...added);
       }, false);

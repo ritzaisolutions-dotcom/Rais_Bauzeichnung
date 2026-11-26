@@ -30,7 +30,26 @@ interface Step {
   optional?: boolean;
 }
 
+/** Kitchen row for a living room without a separate kitchen (open plan). */
+const kitchenStep = (area: number): Step => ({
+  defId: area > 38 ? "kuechenzeile-l" : "kuechenzeile",
+  wall: "side2",
+  along: 0.5,
+  gap: 0,
+  optional: true,
+});
+
 const RECIPES: Partial<Record<RoomType, (area: number) => Step[]>> = {
+  wohnkueche: (area) => [
+    { defId: "sofa-3", wall: "main", along: 0.3, gap: 0.05, textile: 0 },
+    { defId: "teppich", wall: "main", frontOf: 0, dist: -0.35, textile: 2, optional: true },
+    { defId: "couchtisch", wall: "main", frontOf: 0, dist: 0.4, optional: true },
+    { ...kitchenStep(area), optional: false },
+    { defId: "essgruppe-6", wall: "center", along: 0.62, optional: true },
+    { defId: "tv-board", wall: "opposite", along: 0.3, gap: 0.02, optional: true },
+    { defId: "sessel", wall: "side1", along: 0.25, gap: 0.3, textile: 3, optional: true },
+    { defId: "pflanze-gross", wall: "side1", along: 0.9, gap: 0.1, optional: true },
+  ],
   wohnen: (area) => [
     { defId: "sofa-3", wall: "main", along: area > 28 ? 0.3 : 0.5, gap: 0.05, textile: 0 },
     { defId: "teppich", wall: "main", frontOf: 0, dist: -0.35, textile: 2, optional: true },
@@ -161,6 +180,7 @@ export function stageRoom(
   style: StagingStyle = "warm",
   custom: FurnitureDef[] = [],
   obstacles: Vec2[][] = [],
+  opts: { addKitchen?: boolean } = {},
 ): FurnitureItem[] {
   const type =
     room.meta.roomType && room.meta.roomType !== "sonstiges" ? room.meta.roomType : detectRoomType(room.meta.name);
@@ -178,6 +198,8 @@ export function stageRoom(
     ...obstacles,
   ];
   const steps = recipe(room.area);
+  // open plan: the living room also gets the kitchen row when the flat has no kitchen
+  if (opts.addKitchen && type === "wohnen") steps.splice(3, 0, kitchenStep(room.area));
 
   const fits = (x: number, y: number, w: number, d: number, rotation: number, ignoreOverlap: boolean) => {
     // shrink by 1 cm so items standing flush against a wall count as inside
@@ -278,6 +300,18 @@ export function stageRoom(
     }
   });
   return placed;
+}
+
+/**
+ * The room that gets a kitchen row when "furnish all" runs: the largest living room
+ * (at least 18 m²), but only if the floor has no kitchen of its own.
+ */
+export function kitchenHostRoom(rooms: RoomGeometry[]): string | null {
+  const typeOf = (r: RoomGeometry) =>
+    r.meta.roomType && r.meta.roomType !== "sonstiges" ? r.meta.roomType : detectRoomType(r.meta.name);
+  if (rooms.some((r) => typeOf(r) === "kueche" || typeOf(r) === "wohnkueche")) return null;
+  const living = rooms.filter((r) => typeOf(r) === "wohnen" && r.area >= 18).sort((a, b) => b.area - a.area);
+  return living[0]?.meta.id ?? null;
 }
 
 /** Items whose center lies inside the room polygon. */

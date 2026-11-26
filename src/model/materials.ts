@@ -23,6 +23,7 @@ export const FLOOR_MATERIALS: Record<FloorMaterial, FloorMaterialDef> = {
 
 export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
   wohnen: "Wohnen",
+  wohnkueche: "Wohnen / Essen / Kochen",
   schlafen: "Schlafen",
   kind: "Kinderzimmer",
   bad: "Bad",
@@ -41,6 +42,8 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 /** Guesses the room type from a German room name. */
 export function detectRoomType(name: string): RoomType {
   const n = name.toLowerCase();
+  // open-plan living with kitchen: "Wohnen/Essen/Kochen", "Wohnküche", "offene Küche"
+  if (/wohn.*(küche|kueche|koch)|(küche|kueche|koch).*wohn|wohnküche|offene küche/.test(n)) return "wohnkueche";
   if (/wohn|living|lounge/.test(n)) return "wohnen";
   if (/schlaf|eltern/.test(n)) return "schlafen";
   if (/kind/.test(n)) return "kind";

@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const ROOM_TYPES = [
   "wohnen",
+  "wohnkueche",
   "schlafen",
   "kind",
   "bad",

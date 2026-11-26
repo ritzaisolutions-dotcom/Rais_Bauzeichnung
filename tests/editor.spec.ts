@@ -373,3 +373,37 @@ test("DWG files get a conversion hint", async ({ page }) => {
     .setInputFiles({ name: "plan.dwg", mimeType: "application/octet-stream", buffer: Buffer.from("AC1032") });
   await expect(page.getByText(/DWG-Dateien können nicht direkt gelesen werden/)).toBeVisible();
 });
+
+test("furniture top views come from the cache after a reload", async ({ page }) => {
+  test.setTimeout(120000);
+  await newProject(page, "Beispielwohnung", "Cache");
+  await page.getByRole("button", { name: "Alle Räume einrichten" }).click();
+  await page.getByTestId("presentation-toggle").click();
+  const stats = () =>
+    page.evaluate(
+      () => (window as unknown as { __raisSprites: { rendered: number; fromCache: number } }).__raisSprites,
+    );
+  await expect.poll(async () => (await stats()).rendered, { timeout: 60000 }).toBeGreaterThan(10);
+  // let the queue finish and the cache writes land
+  let last = -1;
+  await expect
+    .poll(
+      async () => {
+        const n = (await stats()).rendered;
+        const stable = n === last;
+        last = n;
+        return stable;
+      },
+      { timeout: 60000, intervals: [1500] },
+    )
+    .toBe(true);
+  await expect(page.getByText("Gespeichert")).toBeVisible({ timeout: 10000 });
+  await page.reload();
+  await expect(page.getByTestId("plan-canvas")).toBeVisible();
+  await page.getByTestId("presentation-toggle").click();
+  await expect.poll(async () => (await stats()).fromCache, { timeout: 30000 }).toBeGreaterThan(10);
+  await page.waitForTimeout(1500);
+  expect((await stats()).rendered).toBe(0);
+  await page.getByTestId("intro").getByText("Verstanden").click();
+  await page.screenshot({ path: "test-results/wohnkueche-staging.png" });
+});

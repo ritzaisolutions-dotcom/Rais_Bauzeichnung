@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { create } from "zustand";
+import { getSprite, pruneSprites, putSprite } from "@/lib/spriteCache";
 import type { FurnitureDef, FurnitureItem } from "@/model/types";
 import { buildFurniture, type DefLookup } from "./build";
 
@@ -47,6 +48,32 @@ function hash(s: string) {
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
 }
+
+/** Raise when lighting, camera or materials of the sprite renderer change: old cache entries are then ignored. */
+export const RENDER_VERSION = 1;
+
+const contentHashes = new WeakMap<FurnitureDef, string>();
+/** Hash over the furniture definition including its children, so cached sprites expire when a model changes. */
+export function contentHash(def: FurnitureDef, lookup: DefLookup, depth = 0): string {
+  const known = contentHashes.get(def);
+  if (known) return known;
+  const kids =
+    depth < 3
+      ? (def.children ?? []).map((c) => {
+          const d = lookup(c.defId);
+          return d ? contentHash(d, lookup, depth + 1) : "";
+        })
+      : [];
+  const h = hash(JSON.stringify(def) + kids.join(","));
+  contentHashes.set(def, h);
+  return h;
+}
+
+/** Counters for tests and diagnostics: how many sprites were rendered vs. loaded from the cache. */
+const stats = { rendered: 0, fromCache: 0 };
+if (typeof window !== "undefined") (window as unknown as { __raisSprites: typeof stats }).__raisSprites = stats;
+let reading = 0;
+let pruned = false;
 
 export function spriteKey(def: FurnitureDef, size: Size, res: number) {
   const r = (v: number) => Math.round(v * 100);
@@ -127,14 +154,36 @@ export function requestSprite(def: FurnitureDef, size: Size, lookup: DefLookup, 
   const key = spriteKey(def, size, res);
   if (useSpriteStore.getState().urls[key] || pending.has(key) || disabled) return key;
   pending.add(key);
-  queue.push({
-    key,
-    run: async () => {
-      const url = await renderTopView(def, size, lookup, res);
-      if (url) useSpriteStore.setState((s) => ({ urls: { ...s.urls, [key]: url } }));
-    },
-  });
-  void pump();
+  const stored = `${RENDER_VERSION}:${contentHash(def, lookup)}:${key}`;
+  const set = (url: string) => useSpriteStore.setState((s) => ({ urls: { ...s.urls, [key]: url } }));
+  reading++;
+  void getSprite(stored)
+    .then((cached) => {
+      if (cached) {
+        stats.fromCache++;
+        pending.delete(key);
+        set(cached);
+        return;
+      }
+      queue.push({
+        key,
+        run: async () => {
+          const url = await renderTopView(def, size, lookup, res);
+          if (!url) return;
+          stats.rendered++;
+          set(url);
+          void putSprite(stored, url);
+        },
+      });
+      void pump();
+    })
+    .finally(() => {
+      reading--;
+      if (!pruned) {
+        pruned = true;
+        setTimeout(() => void pruneSprites(), 15000);
+      }
+    });
   return key;
 }
 
@@ -170,5 +219,6 @@ export function useOnScreen<T extends Element>(ref: React.RefObject<T | null>) {
 /** Waits until every sprite currently queued is rendered (used before exporting the plan). */
 export async function spritesIdle(timeoutMs = 20000) {
   const start = Date.now();
-  while ((running || queue.length) && Date.now() - start < timeoutMs) await new Promise((r) => setTimeout(r, 100));
+  while ((running || queue.length || reading > 0) && Date.now() - start < timeoutMs)
+    await new Promise((r) => setTimeout(r, 100));
 }

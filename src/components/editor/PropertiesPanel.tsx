@@ -16,7 +16,7 @@ import {
   uid,
 } from "@/model/ops";
 import { livingArea, roomAreas } from "@/model/woflv";
-import { doorClearances, itemsInRoom, stageRoom } from "@/model/staging";
+import { doorClearances, itemsInRoom, kitchenHostRoom, stageRoom } from "@/model/staging";
 import type { FloorMaterial, FurnitureItem, Opening, OpeningKind, RoomMeta, RoomType, WallType } from "@/model/types";
 import { useActiveFloor, useEditor, useFurnitureDefs } from "@/store/editor";
 import { Button, ColorSwatches, Field, NumberInput, Section, Select, TextInput } from "../ui";
@@ -95,6 +95,7 @@ export function PropertiesPanel() {
     mutate(
       (f) => {
         const geo = computeRoomGeometry(f);
+        const kitchenIn = kitchenHostRoom(geo);
         for (const id of roomIds) {
           const room = geo.find((r) => r.meta.id === id);
           if (!room) continue;
@@ -111,7 +112,7 @@ export function PropertiesPanel() {
           ) {
             meta.floorMaterial = STYLES[style].floor;
           }
-          f.items.push(...stageRoom(room, f.items, style, defs, doorClearances(f)));
+          f.items.push(...stageRoom(room, f.items, style, defs, doorClearances(f), { addKitchen: id === kitchenIn }));
         }
       },
       { normalize: false },
