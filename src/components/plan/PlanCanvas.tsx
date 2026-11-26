@@ -33,6 +33,8 @@ import {
 import type { Floor, OpeningKind, Vec2 } from "@/model/types";
 import { wallFrames, wallRect } from "@/model/walls";
 import { registry } from "@/lib/registry";
+import { thicknessAlong, type UnderlayLines } from "@/lib/underlayLines";
+import { useUnderlayLines } from "@/lib/underlaySnap";
 import { useActiveFloor, useEditor, useFurnitureDefs, type Tool } from "@/store/editor";
 import { MaterialPatterns, PlanLayers } from "./PlanLayers";
 
@@ -63,7 +65,12 @@ interface SnapResult {
   guideX?: number;
   guideY?: number;
   onNode?: boolean;
+  /** Snapped to a wall of the construction drawing. */
+  onDrawing?: boolean;
 }
+
+/** Wall axes detected in the active floor's drawing (world meters), set by PlanCanvas. */
+let drawnWalls: UnderlayLines | null = null;
 
 function snapPoint(
   floor: Floor,
@@ -94,6 +101,19 @@ function snapPoint(
     if (!a || !b) continue;
     const pr = projectToSegment(raw, a, b);
     if (pr.distance < tol * 0.8) return { p: pr.point, onNode: true };
+  }
+  // 2b. corners of walls in the construction drawing
+  if (drawnWalls) {
+    let c: Vec2 | null = null;
+    let cd = tol;
+    for (const k of drawnWalls.corners) {
+      const d = dist(k, raw);
+      if (d < cd) {
+        cd = d;
+        c = { x: k.x, y: k.y };
+      }
+    }
+    if (c) return { p: c, onDrawing: true };
   }
   let p = { ...raw };
   let lockX = false;
@@ -130,6 +150,22 @@ function snapPoint(
       guideY = n.y;
     }
   }
+  // 4b. centre lines of walls in the construction drawing
+  let onDrawing = false;
+  for (const a of drawnWalls?.axes ?? []) {
+    const along = a.dir === "h" ? p.x : p.y;
+    if (along < a.from - tol || along > a.to + tol) continue;
+    if (a.dir === "v" && !lockX && Math.abs(a.at - p.x) < dx) {
+      dx = Math.abs(a.at - p.x);
+      guideX = a.at;
+      onDrawing = true;
+    }
+    if (a.dir === "h" && !lockY && Math.abs(a.at - p.y) < dy) {
+      dy = Math.abs(a.at - p.y);
+      guideY = a.at;
+      onDrawing = true;
+    }
+  }
   // 5. grid on remaining free axes
   const g = 0.05;
   return {
@@ -139,6 +175,7 @@ function snapPoint(
     },
     guideX,
     guideY,
+    onDrawing,
   };
 }
 
@@ -153,6 +190,17 @@ export function PlanCanvas() {
   const wallType = useEditor((s) => s.wallType);
   const wallThickness = useEditor((s) => s.wallThickness);
   const { mutate, checkpoint, select, setTool, setPlacing } = useEditor.getState();
+  const readOnly = useEditor((s) => s.readOnly);
+  const drawn = useUnderlayLines(
+    floor?.underlay,
+    !!floor?.underlay?.visible && layers.underlay && layers.snapUnderlay && !readOnly,
+  );
+  useEffect(() => {
+    drawnWalls = drawn;
+    return () => {
+      drawnWalls = null;
+    };
+  }, [drawn]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -261,8 +309,9 @@ export function PlanCanvas() {
       if (!chainStart) return;
       if (dist(chainStart, end) < 0.05) return;
       const start = chainStart;
+      const drawn = drawnWalls ? thicknessAlong(start, end, drawnWalls.axes) : undefined;
       mutate((f) => {
-        addWall(f, start, end, { type: wallType, thickness: wallThickness });
+        addWall(f, start, end, { type: wallType, thickness: drawn ?? wallThickness });
       });
       // closing a loop ends the chain
       const f = useEditor.getState().project!.floors.find((x) => x.id === useEditor.getState().floorId)!;
@@ -1007,8 +1056,8 @@ export function PlanCanvas() {
         cx={snap.p.x}
         cy={snap.p.y}
         r={handleR}
-        fill={snap.onNode ? "#c2410c" : "#fff"}
-        stroke="#c2410c"
+        fill={snap.onNode ? "#c2410c" : snap.onDrawing ? "#0d9488" : "#fff"}
+        stroke={snap.onDrawing ? "#0d9488" : "#c2410c"}
         strokeWidth={1.5}
         vectorEffect="non-scaling-stroke"
       />
@@ -1208,6 +1257,39 @@ export function PlanCanvas() {
           {openingPreview}
           {ghost}
           {calibLine}
+          {drawn && (tool === "wall" || tool === "room") && (
+            <g style={{ pointerEvents: "none" }} data-testid="drawn-walls">
+              {drawn.axes.map((a, i) =>
+                a.dir === "h" ? (
+                  <line
+                    key={i}
+                    x1={a.from}
+                    x2={a.to}
+                    y1={a.at}
+                    y2={a.at}
+                    stroke="#0d9488"
+                    strokeOpacity={0.45}
+                    strokeWidth={1}
+                    strokeDasharray="6 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : (
+                  <line
+                    key={i}
+                    y1={a.from}
+                    y2={a.to}
+                    x1={a.at}
+                    x2={a.at}
+                    stroke="#0d9488"
+                    strokeOpacity={0.45}
+                    strokeWidth={1}
+                    strokeDasharray="6 4"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ),
+              )}
+            </g>
+          )}
           {snapMarker}
           {floor.underlay?.labels &&
             layers.underlay &&

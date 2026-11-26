@@ -153,11 +153,49 @@ test("shared view shows plan, 3D and areas read-only", async ({ browser }) => {
   await ctx.close();
 });
 
-test("AI import shows a preview for a crop and only applies it on accept", async ({ page }) => {
+async function syntheticPlan() {
   const sharp = (await import("sharp")).default;
-  // synthetic drawing: one 6 × 4 m room at 100 px/m, at (400, 300) on a 1600 × 1200 sheet
+  // one 6 × 4 m room with 24 cm walls at 100 px/m, at (400, 300) on a 1600 × 1200 sheet
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="#fff"/><rect x="400" y="300" width="600" height="400" fill="none" stroke="#000" stroke-width="24"/></svg>`;
-  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+test("tracing snaps to the walls of the drawing and takes their thickness", async ({ page }) => {
+  await newProject(page, "Leerer Grundriss");
+  await page.getByTestId("import-button").click();
+  await page
+    .getByTestId("import-file")
+    .setInputFiles({ name: "plan.png", mimeType: "image/png", buffer: await syntheticPlan() });
+  await page.getByText("Als Unterlage übernehmen und nachzeichnen").click();
+  await page.getByTestId("tool-wall").click();
+  const axes = page.getByTestId("drawn-walls").locator("line");
+  await expect(axes).toHaveCount(4, { timeout: 15000 });
+  const rects = await axes.evaluateAll((ls) =>
+    ls.map((l) => {
+      const r = l.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width, h: r.height };
+    }),
+  );
+  const hs = rects.filter((r) => r.w > r.h).map((r) => r.y).sort((a, b) => a - b);
+  const vs = rects.filter((r) => r.h > r.w).map((r) => r.x).sort((a, b) => a - b);
+  // click 4 px off each corner; the drawing's corners must catch the clicks
+  const corners: [number, number][] = [
+    [vs[0] + 4, hs[0] - 3],
+    [vs[1] - 3, hs[0] + 4],
+    [vs[1] + 4, hs[1] + 3],
+    [vs[0] - 4, hs[1] - 3],
+    [vs[0] + 4, hs[0] - 3],
+  ];
+  for (const [x, y] of corners) await page.mouse.click(x, y);
+  await expect(page.locator('[data-kind="room"]')).toHaveCount(1);
+  await expect(page.getByTestId("plan-canvas")).toContainText("21,66 m²");
+  await page.getByTestId("tool-select").click();
+  await page.locator('[data-kind="wall"]').first().click();
+  await expect(page.locator('input[value="0,240"]')).toHaveCount(1);
+});
+
+test("AI import shows a preview for a crop and only applies it on accept", async ({ page }) => {
+  const png = await syntheticPlan();
   let sent: { width: number; height: number; textItems: unknown[] } | null = null;
   await page.route("**/api/ai/import", async (r) => {
     sent = r.request().postDataJSON();

@@ -36,6 +36,8 @@ export interface Layers {
   dimensions: boolean;
   roomLabels: boolean;
   grid: boolean;
+  /** Snap to walls detected in the construction drawing. */
+  snapUnderlay: boolean;
 }
 
 interface EditorState {
@@ -89,7 +91,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   tool: "select",
   view: "2d",
   presentation: false,
-  layers: { underlay: true, furniture: true, dimensions: true, roomLabels: true, grid: true },
+  layers: { underlay: true, furniture: true, dimensions: true, roomLabels: true, grid: true, snapUnderlay: true },
   globalFurniture: [],
   placing: null,
   wallType: "aussen",

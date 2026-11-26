@@ -48,6 +48,7 @@ const LAYERS: { id: keyof LayerState; label: string }[] = [
   { id: "dimensions", label: "Maße" },
   { id: "roomLabels", label: "Raumnamen" },
   { id: "grid", label: "Raster" },
+  { id: "snapUnderlay", label: "An Zeichnung fangen" },
 ];
 
 export function Toolbar({ libraryOpen, onToggleLibrary }: { libraryOpen: boolean; onToggleLibrary: () => void }) {
