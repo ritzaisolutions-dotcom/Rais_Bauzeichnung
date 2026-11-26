@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { etaSeconds, prepareScene, type PathSceneInput } from "./pathTrace";
+import { dequantize, etaSeconds, prepareScene, type PathSceneInput } from "./pathTrace";
 
 function input(daylight: number, lamps = 0): PathSceneInput {
   const content = new THREE.Group();
@@ -72,5 +72,25 @@ describe("glass", () => {
     expect(found).not.toBeNull();
     expect(found!.thickness).toBe(0);
     expect(glass.thickness).toBe(0.01);
+  });
+});
+
+describe("dequantize", () => {
+  it("turns normalised integer positions into floats with the same values", () => {
+    const g = new THREE.BufferGeometry();
+    const raw = new Int16Array([32767, 0, -32767, 16384, 0, 0, 0, 32767, 0]);
+    g.setAttribute("position", new THREE.BufferAttribute(raw, 3, true));
+    const out = dequantize(g);
+    const p = out.getAttribute("position") as THREE.BufferAttribute;
+    expect(p.array).toBeInstanceOf(Float32Array);
+    expect(p.normalized).toBe(false);
+    expect(p.getX(0)).toBeCloseTo(1, 4);
+    expect(p.getZ(0)).toBeCloseTo(-1, 4);
+    expect(p.getX(1)).toBeCloseTo(0.5, 3);
+    // the editor's geometry stays as it was
+    expect(g.getAttribute("position").array).toBe(raw);
+    // float geometry is returned unchanged
+    const f = new THREE.BoxGeometry();
+    expect(dequantize(f)).toBe(f);
   });
 });

@@ -43,6 +43,7 @@ export function prepareScene(input: PathSceneInput) {
       return c;
     };
     m.material = Array.isArray(m.material) ? m.material.map(fix) : fix(m.material);
+    m.geometry = dequantize(m.geometry);
   });
   scene.add(content);
 
@@ -69,6 +70,32 @@ export function prepareScene(input: PathSceneInput) {
   }
   scene.updateMatrixWorld(true);
   return scene;
+}
+
+const floatGeometries = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+/**
+ * Optimised GLB models store positions, normals and UVs as normalised integers
+ * (mesh quantisation). The path tracer copies attribute arrays as they are, so
+ * those models would become huge and cover the whole image. Give it floats.
+ */
+export function dequantize(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const quantized = Object.values(g.attributes).some(
+    (a) => (a as THREE.BufferAttribute).normalized || !((a as THREE.BufferAttribute).array instanceof Float32Array),
+  );
+  if (!quantized) return g;
+  const known = floatGeometries.get(g);
+  if (known) return known;
+  const out = g.clone();
+  for (const [name, attr] of Object.entries(g.attributes)) {
+    const a = attr as THREE.BufferAttribute | THREE.InterleavedBufferAttribute;
+    if (!a.normalized && a.array instanceof Float32Array && !(a as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute)
+      continue;
+    const arr = new Float32Array(a.count * a.itemSize);
+    for (let i = 0; i < a.count; i++) for (let k = 0; k < a.itemSize; k++) arr[i * a.itemSize + k] = a.getComponent(i, k);
+    out.setAttribute(name, new THREE.BufferAttribute(arr, a.itemSize));
+  }
+  floatGeometries.set(g, out);
+  return out;
 }
 
 /** Remaining seconds from the samples done so far. */
@@ -136,6 +163,8 @@ export async function renderPhoto(input: PathSceneInput, o: PhotoOptions): Promi
   tracer.minSamples = 1;
   tracer.rasterizeScene = false;
   tracer.dynamicLowRes = false;
+  // all material maps share one texture array: 512² layers keep it small (50 maps ≈ 50 MB)
+  tracer.textureSize.set(512, 512);
 
   const cleanup = () => {
     tracer.dispose();
