@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { authConfig } from "@/lib/auth";
 import { LoginForm } from "./LoginForm";
 
@@ -8,5 +9,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { mode } = authConfig();
   // only allow redirects inside this app
   const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  // no password configured: nothing to log in to
+  if (mode === "open") redirect(target);
   return <LoginForm next={target} locked={mode === "locked"} />;
 }

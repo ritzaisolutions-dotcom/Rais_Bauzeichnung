@@ -5,7 +5,7 @@ Interner Grundriss-Editor im Browser: Bauzeichnungen (PDF, DXF, Bild) importiere
 ## Funktionen
 
 **Projekte und Zugang**
-- Ein gemeinsames Passwort schützt App und API (`APP_PASSWORD`). Teilen-Links (`/teilen/…`) sind ohne Passwort lesbar und lassen sich zurückziehen.
+- Optionaler Passwortschutz: Ist `APP_PASSWORD` gesetzt, schützt ein gemeinsames Passwort App und API; ohne die Variable ist die App offen. Teilen-Links (`/teilen/…`) sind immer ohne Passwort lesbar und lassen sich zurückziehen.
 - Projekte liegen in Supabase (wenn konfiguriert) oder im Browser (IndexedDB). „Lokale Projekte in die Cloud übernehmen“ zieht Browser-Projekte um. Speichern mit Konfliktprüfung, Bauzeichnungen und 3D-Modelle als eigene Assets.
 - Mehrere Etagen, Projektdatei `.rais.json` zum Sichern und Weitergeben.
 
@@ -40,7 +40,7 @@ Interner Grundriss-Editor im Browser: Bauzeichnungen (PDF, DXF, Bild) importiere
 
 | Variable | Pflicht | Zweck |
 | --- | --- | --- |
-| `APP_PASSWORD` | ja (Produktion) | Gemeinsames Passwort. Ohne Wert ist die App in Produktion gesperrt, lokal (`next dev`) offen. |
+| `APP_PASSWORD` | nein | Gemeinsames Passwort. Ohne Wert ist die App ohne Anmeldung nutzbar. |
 | `APP_SESSION_SECRET` | nein | Schlüssel für das Anmelde-Cookie (30 Tage). Ohne Wert wird er aus dem Passwort abgeleitet; ein Passwortwechsel meldet dann alle ab. |
 | `SUPABASE_URL` | für Cloud | z. B. `https://qdywaenmojdxhfxqbvun.supabase.co`. Ohne URL und Key speichert jeder Browser lokal. |
 | `SUPABASE_SECRET_KEY` | für Cloud | Secret Key (`sb_secret_…`) aus Supabase → Project Settings → API Keys. Nur serverseitig. |
@@ -62,7 +62,7 @@ Fehler im Browser gehen an `/api/log` und stehen im Vercel-Log (`"source":"clien
 
 ```bash
 npm install          # kopiert auch den pdf.js-Worker nach public/
-npm run dev          # http://localhost:3000 (ohne APP_PASSWORD offen)
+npm run dev          # http://localhost:3000
 npm test             # Unit-Tests (Geometrie, WoFlV, DXF, PDF-Layout, Staging, KI-Werkzeuge …)
 npm run test:e2e     # Playwright: baut, startet auf Port 3021 mit Test-Passwort
 npm run lint

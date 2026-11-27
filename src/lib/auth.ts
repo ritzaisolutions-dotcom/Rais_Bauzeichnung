@@ -9,8 +9,8 @@ export type AuthMode = "open" | "protected" | "locked";
 export function authConfig(): { mode: AuthMode; password: string; secret: string } {
   const password = process.env.APP_PASSWORD?.trim() ?? "";
   if (!password) {
-    // without a password the app is only open on a developer machine; in production it stays closed
-    return { mode: process.env.NODE_ENV === "production" ? "locked" : "open", password: "", secret: "" };
+    // password protection is optional: without APP_PASSWORD the app is open
+    return { mode: "open", password: "", secret: "" };
   }
   // the secret defaults to a hash of the password, so changing the password logs everybody out
   const secret =

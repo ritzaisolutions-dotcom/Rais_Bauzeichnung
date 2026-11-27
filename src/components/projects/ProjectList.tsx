@@ -21,7 +21,7 @@ import { Button, Dialog, Field, TextInput } from "../ui";
 
 const timestamp = () => Date.now();
 
-export function ProjectList() {
+export function ProjectList({ canLogout = false }: { canLogout?: boolean }) {
   const router = useRouter();
   const [rows, setRows] = useState<ProjectSummary[] | null>(null);
   const [cloud, setCloud] = useState(false);
@@ -105,16 +105,18 @@ export function ProjectList() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              title="Abmelden"
-              onClick={async () => {
-                await fetch("/api/logout", { method: "POST" });
-                router.replace("/login");
-              }}
-            >
-              <LogOut size={15} />
-            </Button>
+            {canLogout && (
+              <Button
+                variant="ghost"
+                title="Abmelden"
+                onClick={async () => {
+                  await fetch("/api/logout", { method: "POST" });
+                  router.replace("/login");
+                }}
+              >
+                <LogOut size={15} />
+              </Button>
+            )}
             <Button onClick={() => fileRef.current?.click()}>
               <Upload size={15} /> <span className="hidden sm:inline">Projektdatei öffnen</span>
             </Button>
